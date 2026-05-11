@@ -2,6 +2,7 @@ services:
   - type: web
     name: mundial2026-api
     runtime: python
+    rootDir: backend
     buildCommand: pip install -r requirements.txt && alembic upgrade head
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -14,4 +15,6 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://tuusuario.github.io
+        value: "*" # Cambiar por el dominio del frontend cuando lo tengas
+      - key: FOOTBALL_API_KEY
+        sync: false
