@@ -1,0 +1,653 @@
+import logging
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import Dict, Any, List
+from pydantic import BaseModel
+from datetime import datetime
+
+from app.models.models import Match, MatchPrediction, User, Team, Group, Stadium, PollaConfig
+from app.models.enums import MatchStatus, ConfederationType, MatchStage
+from app.services.football_api import football_api
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+class SyncResult(BaseModel):
+    updated: int = 0
+    created: int = 0
+    errors: int = 0
+
+async def calculate_predictions_points(db: AsyncSession, match_id: int) -> None:
+    # Obtener el partido y sus predicciones
+    match_q = select(Match).where(Match.id == match_id)
+    match_res = await db.execute(match_q)
+    match_obj = match_res.scalar_one_or_none()
+    
+    if not match_obj or match_obj.status != MatchStatus.finished:
+        return
+
+    home_score = match_obj.home_score
+    away_score = match_obj.away_score
+
+    # Fetch config for points
+    config_q = select(PollaConfig).limit(1)
+    config_res = await db.execute(config_q)
+    config = config_res.scalar_one_or_none()
+    
+    p_exact = config.points_exact_score if config else 3
+    p_correct = config.points_correct_result if config else 1
+
+    # Obtener todas las predicciones para este partido
+    query = select(MatchPrediction).where(MatchPrediction.match_id == match_id)
+    result = await db.execute(query)
+    predictions = result.scalars().all()
+    
+    if not predictions:
+        return
+
+    # Mapeo de usuarios para actualización masiva (o al menos reducir consultas)
+    user_points_delta = {}
+    
+    for pred in predictions:
+        pred_home = pred.predicted_home_score
+        pred_away = pred.predicted_away_score
+        
+        real_winner = "HOME" if home_score > away_score else "AWAY" if away_score > home_score else "DRAW"
+        pred_winner = "HOME" if pred_home > pred_away else "AWAY" if pred_away > pred_home else "DRAW"
+        
+        is_exact = (pred_home == home_score) and (pred_away == away_score)
+        is_correct = (real_winner == pred_winner)
+        
+        points = 0
+        if is_exact:
+            points = p_exact
+        elif is_correct:
+            points = p_correct
+            
+        old_points = pred.points_earned or 0
+        delta = points - old_points
+        
+        if delta != 0:
+            user_points_delta[pred.user_id] = user_points_delta.get(pred.user_id, 0) + delta
+            
+        pred.points_earned = points
+        pred.is_exact_score = is_exact
+        pred.is_correct_result = is_correct
+        
+    # Actualizar puntos de usuarios en lote (o al menos agrupados)
+    if user_points_delta:
+        for user_id, delta in user_points_delta.items():
+            from sqlalchemy import update
+            await db.execute(
+                update(User)
+                .where(User.id == user_id)
+                .values(total_points=User.total_points + delta)
+            )
+        
+    await db.commit()
+
+    # ACTUALIZACIÓN DE ESTADÍSTICAS REALES DEL EQUIPO
+    # Recalculamos para ambos equipos del partido
+    await update_team_stats_from_matches(db, match_obj.home_team_id)
+    await update_team_stats_from_matches(db, match_obj.away_team_id)
+    
+    # Refrescar la vista materializada del leaderboard
+    try:
+        from sqlalchemy import text
+        await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard"))
+        await db.commit()
+    except Exception as e:
+        # Si falla el concurrente (ej. no hay índice o primera vez), intentar normal
+        try:
+            await db.execute(text("REFRESH MATERIALIZED VIEW leaderboard"))
+            await db.commit()
+        except Exception as e2:
+            logger.error(f"Error refreshing leaderboard view: {e2}")
+
+async def update_team_stats_from_matches(db: AsyncSession, team_id: int) -> None:
+    """
+    Recalcula las estadísticas de un equipo (puntos, GF, GC, etc.) 
+    basándose únicamente en los partidos terminados en la base de datos local.
+    """
+    from app.models.enums import MatchStage, MatchStatus
+    from sqlalchemy import or_
+
+    # Buscar todos los partidos terminados de este equipo en fase de grupos
+    query = select(Match).where(
+        or_(Match.home_team_id == team_id, Match.away_team_id == team_id),
+        Match.status == MatchStatus.finished,
+        Match.stage == MatchStage.group
+    )
+    result = await db.execute(query)
+    matches = result.scalars().all()
+
+    stats = {
+        "pj": 0, "v": 0, "e": 0, "d": 0,
+        "gf": 0, "gc": 0, "pts": 0
+    }
+
+    for m in matches:
+        stats["pj"] += 1
+        if m.home_team_id == team_id:
+            h, a = m.home_score, m.away_score
+            stats["gf"] += h
+            stats["gc"] += a
+            if h > a:
+                stats["v"] += 1
+                stats["pts"] += 3
+            elif h == a:
+                stats["e"] += 1
+                stats["pts"] += 1
+            else:
+                stats["d"] += 1
+        else:
+            h, a = m.home_score, m.away_score
+            stats["gf"] += a
+            stats["gc"] += h
+            if a > h:
+                stats["v"] += 1
+                stats["pts"] += 3
+            elif a == h:
+                stats["e"] += 1
+                stats["pts"] += 1
+            else:
+                stats["d"] += 1
+
+    # Actualizar equipo
+    team_q = select(Team).where(Team.id == team_id)
+    team_res = await db.execute(team_q)
+    team = team_res.scalar_one_or_none()
+    
+    if team:
+        team.partidos_jugados = stats["pj"]
+        team.victorias = stats["v"]
+        team.empates = stats["e"]
+        team.derrotas = stats["d"]
+        team.goles_favor = stats["gf"]
+        team.goles_contra = stats["gc"]
+        team.puntos_fase_grupos = stats["pts"]
+        team.diferencia_goles = stats["gf"] - stats["gc"]
+        
+        await db.commit()
+
+async def recalculate_all_teams_stats(db: AsyncSession) -> None:
+    """
+    Recalcula las estadísticas de TODOS los equipos basándose en los partidos terminados.
+    """
+    # Obtener todos los equipos
+    teams_q = select(Team)
+    teams_res = await db.execute(teams_q)
+    teams = teams_res.scalars().all()
+    
+    for team in teams:
+        await update_team_stats_from_matches(db, team.id)
+    
+    logger.info("Recalculadas estadísticas de todos los equipos satisfactoriamente.")
+
+STAGE_MAPPING = {
+    "GROUP_STAGE": MatchStage.group,
+    "ROUND_OF_32": MatchStage.round_of_32,
+    "ROUND_OF_16": MatchStage.round_of_16,
+    "QUARTER_FINALS": MatchStage.quarterfinal,
+    "SEMI_FINALS": MatchStage.semifinal,
+    "THIRD_PLACE": MatchStage.third_place,
+    "FINAL": MatchStage.final
+}
+
+OFFICIAL_STADIUMS = {
+    "Estadio Azteca": {"city": "Ciudad de México", "country": "México", "capacity": 83264},
+    "Estadio Akron": {"city": "Guadalajara", "country": "México", "capacity": 46355},
+    "Estadio BBVA": {"city": "Monterrey", "country": "México", "capacity": 51000},
+    "BC Place": {"city": "Vancouver", "country": "Canadá", "capacity": 54500},
+    "BMO Field": {"city": "Toronto", "country": "Canadá", "capacity": 30000},
+    "Mercedes-Benz Stadium": {"city": "Atlanta", "country": "USA", "capacity": 71000},
+    "Gillette Stadium": {"city": "Boston", "country": "USA", "capacity": 65878},
+    "AT&T Stadium": {"city": "Dallas", "country": "USA", "capacity": 80000},
+    "NRG Stadium": {"city": "Houston", "country": "USA", "capacity": 72220},
+    "GEHA Field at Arrowhead Stadium": {"city": "Kansas City", "country": "USA", "capacity": 76416},
+    "SoFi Stadium": {"city": "Los Angeles", "country": "USA", "capacity": 70240},
+    "Hard Rock Stadium": {"city": "Miami", "country": "USA", "capacity": 64767},
+    "MetLife Stadium": {"city": "New York/New Jersey", "country": "USA", "capacity": 82500},
+    "Lincoln Financial Field": {"city": "Philadelphia", "country": "USA", "capacity": 69796},
+    "Levi's Stadium": {"city": "San Francisco Bay Area", "country": "USA", "capacity": 68500},
+    "Lumen Field": {"city": "Seattle", "country": "USA", "capacity": 69000},
+}
+
+# Mapeo oficial de números de partido a estadios (según calendario FIFA WC 2026)
+MATCH_STADIUM_MAPPING = {
+    1: "Estadio Azteca", 2: "Estadio Akron", 3: "BMO Field", 4: "SoFi Stadium",
+    5: "Estadio BBVA", 6: "NRG Stadium", 7: "Estadio Akron", 8: "Mercedes-Benz Stadium",
+    9: "Estadio BBVA", 10: "AT&T Stadium", 11: "GEHA Field at Arrowhead Stadium",
+    12: "BC Place", 13: "Hard Rock Stadium", 14: "NRG Stadium", 15: "SoFi Stadium",
+    16: "Levi's Stadium", 17: "MetLife Stadium", 18: "GEHA Field at Arrowhead Stadium",
+    19: "BMO Field", 20: "Lumen Field", 21: "Mercedes-Benz Stadium", 22: "AT&T Stadium",
+    23: "Hard Rock Stadium", 24: "Estadio Azteca", 25: "MetLife Stadium",
+    26: "Gillette Stadium", 27: "NRG Stadium", 28: "Estadio BBVA",
+    29: "GEHA Field at Arrowhead Stadium", 30: "Levi's Stadium", 31: "BC Place",
+    32: "Lumen Field", 33: "BMO Field", 34: "MetLife Stadium", 35: "Mercedes-Benz Stadium",
+    36: "Lincoln Financial Field", 37: "AT&T Stadium", 38: "Gillette Stadium",
+    39: "Hard Rock Stadium", 40: "Lincoln Financial Field", 41: "Lumen Field",
+    42: "Levi's Stadium", 43: "NRG Stadium", 44: "AT&T Stadium",
+    45: "GEHA Field at Arrowhead Stadium", 46: "Estadio BBVA", 47: "BC Place",
+    48: "SoFi Stadium", 49: "MetLife Stadium", 50: "Gillette Stadium",
+    51: "Mercedes-Benz Stadium", 52: "Lumen Field", 53: "Estadio Azteca",
+    54: "Estadio BBVA", 55: "NRG Stadium", 56: "AT&T Stadium",
+    57: "Lincoln Financial Field", 58: "Hard Rock Stadium", 59: "GEHA Field at Arrowhead Stadium",
+    60: "SoFi Stadium", 61: "MetLife Stadium", 62: "Gillette Stadium",
+    63: "Lumen Field", 64: "BC Place", 65: "BMO Field", 66: "Estadio Azteca",
+    67: "Estadio Akron", 68: "MetLife Stadium", 69: "Gillette Stadium",
+    70: "Lincoln Financial Field", 71: "Hard Rock Stadium", 72: "Mercedes-Benz Stadium"
+}
+
+async def sync_stadiums(db: AsyncSession) -> SyncResult:
+    result = SyncResult()
+    for name, info in OFFICIAL_STADIUMS.items():
+        stadium_q = select(Stadium).where(Stadium.name == name)
+        stadium = (await db.execute(stadium_q)).scalar_one_or_none()
+        if not stadium:
+            stadium = Stadium(name=name, city=info["city"], country=info["country"], capacity=info.get("capacity", 0))
+            db.add(stadium)
+            result.created += 1
+        else:
+            stadium.city = info["city"]
+            stadium.country = info["country"]
+            stadium.capacity = info.get("capacity", 0)
+            result.updated += 1
+    await db.commit()
+    return result
+
+async def _get_or_create_stadium(db: AsyncSession, venue_name: str, match_number: int = None) -> Stadium:
+    """Helper to get or create stadium with mapping fallback"""
+    # 1. Intentar resolver por número de partido si no hay venue o es genérico
+    if (not venue_name or "definir" in venue_name.lower() or venue_name == "Unknown Venue") and match_number in MATCH_STADIUM_MAPPING:
+        venue_name = MATCH_STADIUM_MAPPING[match_number]
+        logger.info(f"Mapping match #{match_number} to stadium: {venue_name}")
+
+    if not venue_name:
+        venue_name = "Estadio por definir"
+
+    # 2. Buscar en BD
+    result = await db.execute(select(Stadium).where(Stadium.name == venue_name))
+    stadium = result.scalar_one_or_none()
+    
+    if stadium:
+        return stadium
+    
+    # 3. Si no existe, ver si está en nuestra lista oficial
+    info = OFFICIAL_STADIUMS.get(venue_name, {"city": "Por definir", "country": "TBD", "capacity": 0})
+    
+    new_stadium = Stadium(
+        name=venue_name,
+        city=info["city"],
+        country=info["country"],
+        capacity=info.get("capacity")
+    )
+    db.add(new_stadium)
+    await db.flush()
+    return new_stadium
+
+async def sync_matches(db: AsyncSession) -> SyncResult:
+    result = SyncResult()
+    try:
+        data = await football_api.get_all_matches()
+        if not data or 'matches' not in data:
+            return result
+            
+        # Sort matches by date and then by ID to ensure a stable sequence (1-104)
+        # This allows us to map venues manually using MATCH_STADIUM_MAPPING
+        api_matches = sorted(data['matches'], key=lambda x: (x.get('utcDate', ''), x.get('id', 0)))
+            
+        for i, match_data in enumerate(api_matches, 1):
+            tournament_match_number = i # Unique match number in tournament (1-104)
+            ext_id = match_data['id']
+            status_str = match_data['status']
+            
+            api_status = MatchStatus.scheduled
+            if status_str in ["IN_PLAY", "PAUSED", "LIVE"]:
+                api_status = MatchStatus.live
+            elif status_str == "FINISHED":
+                api_status = MatchStatus.finished
+            elif status_str == "POSTPONED":
+                api_status = MatchStatus.postponed
+                
+            home_score = match_data.get('score', {}).get('fullTime', {}).get('home')
+            away_score = match_data.get('score', {}).get('fullTime', {}).get('away')
+            
+            q = select(Match).where(Match.external_match_id == ext_id)
+            db_res = await db.execute(q)
+            db_match = db_res.scalar_one_or_none()
+            
+            if db_match:
+                is_db_finished = (db_match.status == MatchStatus.finished or db_match.status == "finished")
+                is_api_finished = (api_status == MatchStatus.finished or api_status == "finished")
+                
+                # Update stadium if venue is available or can be mapped
+                venue_name = match_data.get('venue')
+                stadium_updated = False
+                
+                new_stadium = await _get_or_create_stadium(db, venue_name, match_number=tournament_match_number)
+                if db_match.stadium_id != new_stadium.id:
+                    db_match.stadium_id = new_stadium.id
+                    stadium_updated = True
+
+                # Prevent API from downgrading a match that was already marked as finished
+                # (e.g. by an admin manual override)
+                if is_db_finished and not is_api_finished:
+                    if stadium_updated:
+                        await db.commit()
+                        result.updated += 1
+                    continue
+
+                # Update
+                if db_match.home_score != home_score or db_match.away_score != away_score or db_match.status != api_status or stadium_updated:
+                    db_match.home_score = home_score
+                    db_match.away_score = away_score
+                    db_match.status = api_status
+                    db_match.match_number = tournament_match_number
+                    
+                    if api_status == MatchStatus.finished and home_score is not None and away_score is not None:
+                        await db.commit()
+                        await calculate_predictions_points(db, db_match.id)
+                    else:
+                        await db.commit()
+                        
+                    result.updated += 1
+            else:
+                # Create match
+                home_ext_id = match_data.get('homeTeam', {}).get('id')
+                away_ext_id = match_data.get('awayTeam', {}).get('id')
+                
+                if not home_ext_id or not away_ext_id:
+                    continue
+                    
+                # Get teams
+                home_team = (await db.execute(select(Team).where(Team.external_id == home_ext_id))).scalar_one_or_none()
+                away_team = (await db.execute(select(Team).where(Team.external_id == away_ext_id))).scalar_one_or_none()
+                
+                if not home_team or not away_team:
+                    continue
+                
+                # Get or create stadium
+                venue_name = match_data.get('venue')
+                stadium = await _get_or_create_stadium(db, venue_name, match_number=tournament_match_number)
+                
+                # Get group if applicable
+                group_id = None
+                group_name_full = match_data.get('group')
+                if group_name_full:
+                    group_letter = group_name_full.split(' ')[-1]
+                    if len(group_letter) > 1: group_letter = group_letter[0]
+                    group_obj = (await db.execute(select(Group).where(Group.name == group_letter))).scalar_one_or_none()
+                    if group_obj:
+                        group_id = group_obj.id
+
+                # Create the match
+                new_match = Match(
+                    external_match_id=ext_id,
+                    home_team_id=home_team.id,
+                    away_team_id=away_team.id,
+                    stadium_id=stadium.id,
+                    match_date=datetime.fromisoformat(match_data['utcDate'].replace('Z', '+00:00')),
+                    stage=STAGE_MAPPING.get(match_data['stage'], MatchStage.group),
+                    group_id=group_id,
+                    match_number=tournament_match_number,
+                    status=api_status,
+                    home_score=home_score,
+                    away_score=away_score
+                )
+                db.add(new_match)
+                result.created += 1
+                
+        await db.commit()
+                
+    except Exception as e:
+        logger.error(f"Sync error: {e}")
+        await db.rollback()
+        result.errors += 1
+        
+    return result
+
+AREA_MAPPING = {
+    "Europe": ConfederationType.UEFA,
+    "South America": ConfederationType.CONMEBOL,
+    "North & Central America": ConfederationType.CONCACAF,
+    "Africa": ConfederationType.CAF,
+    "Asia": ConfederationType.AFC,
+    "Oceania": ConfederationType.OFC
+}
+
+async def sync_teams_and_groups(db: AsyncSession) -> SyncResult:
+    result = SyncResult()
+    try:
+        logger.info("Starting teams and groups sync...")
+        data = await football_api.get_standings()
+        
+        if not data or 'standings' not in data:
+            logger.warning("No standings data received from API")
+            return result
+            
+        for standing in data['standings']:
+            if standing.get('type') != 'TOTAL':
+                continue
+                
+            group_name_full = standing.get('group', "")
+            if not group_name_full:
+                continue
+                
+            group_letter = group_name_full.split(' ')[-1]
+            if len(group_letter) > 1: group_letter = group_letter[0]
+
+            q_group = select(Group).where(Group.name == group_letter)
+            res_group = await db.execute(q_group)
+            group_obj = res_group.scalar_one_or_none()
+            
+            if not group_obj:
+                group_obj = Group(name=group_letter)
+                db.add(group_obj)
+                await db.flush()
+            
+            for entry in standing.get('table', []):
+                team_data = entry.get('team', {})
+                ext_id = team_data.get('id')
+                if not ext_id: continue
+                    
+                q_team = select(Team).where(Team.external_id == ext_id)
+                res_team = await db.execute(q_team)
+                db_team = res_team.scalar_one_or_none()
+                
+                area_name = team_data.get('area', {}).get('name', 'Europe')
+                confed = AREA_MAPPING.get(area_name, ConfederationType.UEFA)
+                
+                if db_team:
+                    db_team.partidos_jugados = entry.get('playedGames', 0)
+                    db_team.victorias = entry.get('won', 0)
+                    db_team.empates = entry.get('draw', 0)
+                    db_team.derrotas = entry.get('lost', 0)
+                    db_team.goles_favor = entry.get('goalsFor', 0)
+                    db_team.goles_contra = entry.get('goalsAgainst', 0)
+                    db_team.diferencia_goles = entry.get('goalDifference', 0)
+                    db_team.puntos_fase_grupos = entry.get('points', 0)
+                    db_team.group_id = group_obj.id
+                    db_team.logo_url = team_data.get('crest')
+                    result.updated += 1
+                else:
+                    db_team = Team(
+                        external_id=ext_id,
+                        name=team_data.get('name'),
+                        country_code=team_data.get('tla', '??')[:2],
+                        confederation=confed,
+                        group_id=group_obj.id,
+                        logo_url=team_data.get('crest'),
+                        partidos_jugados=entry.get('playedGames', 0),
+                        victorias=entry.get('won', 0),
+                        empates=entry.get('draw', 0),
+                        derrotas=entry.get('lost', 0),
+                        goles_favor=entry.get('goalsFor', 0),
+                        goles_contra=entry.get('goalsAgainst', 0),
+                        diferencia_goles=entry.get('goalDifference', 0),
+                        puntos_fase_grupos=entry.get('points', 0)
+                    )
+                    db.add(db_team)
+                    result.created += 1
+
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Error syncing teams and groups: {e}")
+        await db.rollback()
+        result.errors += 1
+    return result
+
+async def sync_special_categories(db: AsyncSession) -> None:
+    """Sincroniza las categorías de apuestas especiales con sus puntos."""
+    from app.models.models import SpecialBetCategory
+    from app.models.enums import BetType
+    from datetime import datetime, timezone
+
+    categories = [
+        {"name": "Campeón", "description": "Selecciona el equipo que quedará campeón del Mundial 2026", "points": 30, "type": BetType.team},
+        {"name": "Subcampeón", "description": "Selecciona el equipo que perderá la final", "points": 20, "type": BetType.team},
+        {"name": "Tercer lugar", "description": "Selecciona el equipo que quedará en tercer lugar", "points": 15, "type": BetType.team},
+        {"name": "Mejor jugador del torneo", "description": "Escribe quién será el Balón de Oro del Mundial", "points": 20, "type": BetType.text},
+        {"name": "Goleador del torneo", "description": "Escribe quién ganará la Bota de Oro", "points": 20, "type": BetType.text},
+        {"name": "Mejor portero del torneo", "description": "Escribe el portero con menos goles recibidos (Guante de Oro)", "points": 20, "type": BetType.text},
+    ]
+
+    deadline = datetime(2026, 6, 11, 15, 0, tzinfo=timezone.utc) # Fecha de inicio del mundial
+
+    for cat in categories:
+        stmt = select(SpecialBetCategory).where(SpecialBetCategory.name == cat["name"])
+        existing = (await db.execute(stmt)).scalar_one_or_none()
+        
+        if existing:
+            existing.points_reward = cat["points"]
+            existing.description = cat["description"]
+            existing.bet_type = cat["type"]
+            existing.deadline = deadline
+        else:
+            new_cat = SpecialBetCategory(
+                name=cat["name"],
+                description=cat["description"],
+                points_reward=cat["points"],
+                bet_type=cat["type"],
+                deadline=deadline
+            )
+            db.add(new_cat)
+    
+    await db.commit()
+
+async def sync_players(db: AsyncSession) -> SyncResult:
+    """Sincroniza los jugadores de todos los equipos registrados."""
+    from app.models.models import Player, PlayerTournamentStats
+    from app.models.enums import PlayerPosition
+    result = SyncResult()
+    
+    # Obtener todos los equipos que tengan ID externo
+    teams_q = select(Team).where(Team.external_id.is_not(None))
+    teams = (await db.execute(teams_q)).scalars().all()
+    
+    for team in teams:
+        try:
+            logger.info(f"Sincronizando jugadores de {team.name}...")
+            squad_data = await football_api.get_team_squad(team.external_id)
+            
+            if not squad_data or "squad" not in squad_data:
+                logger.warning(f"No se encontró squad para {team.name}")
+                continue
+                
+            for p_data in squad_data["squad"]:
+                # p_data: {id, name, position, dateOfBirth, nationality, shirtNumber}
+                p_q = select(Player).where(Player.name == p_data["name"], Player.team_id == team.id)
+                player = (await db.execute(p_q)).scalar_one_or_none()
+                
+                pos_map = {
+                    "Goalkeeper": PlayerPosition.goalkeeper,
+                    "Defender": PlayerPosition.defender,
+                    "Defence": PlayerPosition.defender,
+                    "Midfielder": PlayerPosition.midfielder,
+                    "Midfield": PlayerPosition.midfielder,
+                    "Forward": PlayerPosition.forward,
+                    "Offence": PlayerPosition.forward
+                }
+                pos = pos_map.get(p_data.get("position"), PlayerPosition.midfielder)
+                
+                if player:
+                    player.shirt_number = p_data.get("shirtNumber")
+                    player.position = pos
+                    result.updated += 1
+                else:
+                    player = Player(
+                        team_id=team.id,
+                        name=p_data["name"],
+                        shirt_number=p_data.get("shirtNumber"),
+                        position=pos,
+                        nationality=p_data.get("nationality")
+                    )
+                    db.add(player)
+                    await db.flush() # Para obtener el ID del jugador recién creado
+                    
+                    # Inicializar estadísticas del torneo para el jugador
+                    stats = PlayerTournamentStats(player_id=player.id)
+                    db.add(stats)
+                    result.created += 1
+            
+            await db.commit()
+            # Pequeño delay para no saturar la API (Rate limit)
+            await asyncio.sleep(0.5)
+            
+        except Exception as e:
+            logger.error(f"Error sincronizando equipo {team.name}: {e}")
+            result.errors += 1
+            
+    return result
+
+async def sync_scorers(db: AsyncSession) -> SyncResult:
+    """Sincroniza los goleadores del torneo."""
+    from app.models.models import Player, PlayerTournamentStats
+    result = SyncResult()
+    
+    try:
+        scorers_data = await football_api.get_scorers()
+        if not scorers_data or "scorers" not in scorers_data:
+            return result
+            
+        for s_data in scorers_data["scorers"]:
+            # s_data: {player: {id, name}, team: {id, name}, goals: X, assists: Y}
+            player_name = s_data["player"]["name"]
+            
+            # Buscar al jugador en nuestra DB
+            p_q = select(Player).where(Player.name == player_name)
+            player = (await db.execute(p_q)).scalar_one_or_none()
+            
+            if player:
+                stats_q = select(PlayerTournamentStats).where(PlayerTournamentStats.player_id == player.id)
+                stats = (await db.execute(stats_q)).scalar_one_or_none()
+                
+                if stats:
+                    stats.goals = s_data.get("goals", 0)
+                    stats.assists = s_data.get("assists", 0)
+                    result.updated += 1
+                    
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Error sincronizando goleadores: {e}")
+        result.errors += 1
+        
+    return result
+
+async def sync_standings(db: AsyncSession) -> SyncResult:
+    res1 = await sync_stadiums(db)
+    res2 = await sync_teams_and_groups(db)
+    
+    # Después de sincronizar equipos y grupos, recalculamos localmente 
+    # para asegurar que los puntos coincidan con los partidos que tenemos en la DB
+    await recalculate_all_teams_stats(db)
+    
+    await sync_special_categories(db)
+    res3 = await sync_scorers(db) # Añadimos goleadores al sync general
+    
+    return SyncResult(
+        updated=res1.updated + res2.updated + res3.updated,
+        created=res1.created + res2.created + res3.created,
+        errors=res1.errors + res2.errors + res3.errors
+    )

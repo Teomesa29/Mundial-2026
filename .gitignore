@@ -1,0 +1,32 @@
+# Python
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/*.pyc
+backend/.env
+backend/server.log
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Agents
+.agents/
+agents.md
+skills-lock.json
+frontend/.agents/
+frontend/skills-lock.json
