@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     SYNC_INTERVAL_MINUTES: int = 5
 
     # CORS — stored as comma-separated string to avoid pydantic-settings JSON issues
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://teomesa29.github.io"
 
     # Render
     PORT: int = 8000
