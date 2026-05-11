@@ -29,6 +29,8 @@ jobs:
           npm install
 
       - name: Build
+        env:
+          VITE_API_URL: https://mundial-2026-wcke.onrender.com/api/v1
         run: |
           cd frontend
           npm run build
