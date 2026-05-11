@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     SYNC_INTERVAL_MINUTES: int = 5
 
     # CORS — stored as comma-separated string to avoid pydantic-settings JSON issues
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://teomesa29.github.io"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://teomesa29.github.io,https://teomesa29.github.io/"
 
     # Render
     PORT: int = 8000
@@ -39,13 +39,20 @@ class Settings(BaseSettings):
     def allowed_origins_list(self) -> List[str]:
         """Parses ALLOWED_ORIGINS as a comma-separated or JSON-style string."""
         import json
-        val = self.ALLOWED_ORIGINS.strip()
-        if val.startswith("["):
+        raw_val = self.ALLOWED_ORIGINS.strip()
+        
+        # Handle cases where env var is wrapped in quotes
+        if (raw_val.startswith('"') and raw_val.endswith('"')) or (raw_val.startswith("'") and raw_val.endswith("'")):
+            raw_val = raw_val[1:-1].strip()
+            
+        if raw_val.startswith("["):
             try:
-                return json.loads(val)
+                return json.loads(raw_val)
             except Exception:
                 pass
-        return [o.strip() for o in val.split(",") if o.strip()]
+        
+        # Fallback to comma-separated
+        return [o.strip() for o in raw_val.split(",") if o.strip()]
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

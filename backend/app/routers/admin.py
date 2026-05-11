@@ -148,6 +148,7 @@ async def get_admin_users(db: AsyncSession = Depends(get_db)):
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def admin_create_user(
     body: AdminCreateUser,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -189,17 +190,27 @@ async def admin_create_user(
     await db.commit()
     await db.refresh(new_user)
     
-    # Refresh the leaderboard so the new user appears at the bottom
-    from sqlalchemy import text
-    try:
-        await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard"))
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        await db.execute(text("REFRESH MATERIALIZED VIEW leaderboard"))
-        await db.commit()
+    # Refresh the leaderboard in background to avoid transaction issues and speed up response
+    background_tasks.add_task(refresh_leaderboard, db)
         
     return new_user
+
+async def refresh_leaderboard(db: AsyncSession):
+    """Refresca la vista materializada de forma segura."""
+    from sqlalchemy import text
+    try:
+        # Intentar refresco concurrente (no bloquea lecturas)
+        await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard"))
+        await db.commit()
+    except Exception as e:
+        # Si falla (p.ej. no hay índice único o la vista está vacía), intentar refresco normal
+        await db.rollback()
+        try:
+            await db.execute(text("REFRESH MATERIALIZED VIEW leaderboard"))
+            await db.commit()
+        except Exception as e2:
+            import logging
+            logging.getLogger("uvicorn.error").error(f"Error refreshing leaderboard: {e2}")
 
 
 @router.get("/users", response_model=List[UserResponse])
@@ -213,6 +224,7 @@ async def list_users(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina un usuario (solo admin)."""
@@ -224,17 +236,8 @@ async def delete_user(
         await db.delete(user)
         await db.commit()
         
-        # Refresh the materialized view so the deleted user disappears from the ranking
-        from sqlalchemy import text
-        try:
-            await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard"))
-            await db.commit()
-        except Exception:
-            # Fallback for concurrent refresh failure or if unique index is missing
-            await db.rollback()
-            await db.execute(text("REFRESH MATERIALIZED VIEW leaderboard"))
-            await db.commit()
-            
+        # Refresh the materialized view in background
+        background_tasks.add_task(refresh_leaderboard, db)
     except Exception as e:
         await db.rollback()
         raise HTTPException(
