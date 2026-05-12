@@ -127,7 +127,7 @@ app.include_router(leaderboard.router, prefix="/api/v1/leaderboard", tags=["Lead
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(sync.router, prefix="/api/v1/sync", tags=["Sync"])
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {
         "name": settings.APP_NAME,
@@ -137,7 +137,7 @@ async def root():
         "docs": "/docs" if not settings.is_production else None
     }
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     db_ok, response_ms = await check_db_connection()
     uptime_seconds = int(time.time() - boot_time)
