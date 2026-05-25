@@ -178,9 +178,9 @@ h1, h2, h3, h4, .display-text {
 
 /* RESPONSIVE BASE */
 @media (max-width: 768px) {
-  .app-container { flex-direction: column; }
-  .main-content { order: 1; height: calc(100vh - 70px); }
-  .view { padding: 0 1rem 2rem 1rem; }
+  .app-container { flex-direction: column; height: 100vh; overflow: hidden; }
+  .main-content { height: 100vh; padding-bottom: 90px; }
+  .view { padding: 0 1rem 100px 1rem; }
 }
 
 /* GROUP TABLES / FORECAST */
