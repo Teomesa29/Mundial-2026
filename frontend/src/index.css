@@ -495,7 +495,7 @@ h1, h2, h3, h4, .display-text {
 
 .pred-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 2rem;
 }
 
@@ -568,6 +568,19 @@ h1, h2, h3, h4, .display-text {
   flex-direction: column;
   align-items: center;
   text-align: center;
+  min-width: 80px;
+  overflow: hidden;
+}
+
+.pred-team span {
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1.2;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .score-inputs {
