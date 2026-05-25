@@ -53,6 +53,7 @@ h1, h2, h3, h4, .display-text {
   display: flex;
   height: 100vh;
   width: 100vw;
+  overflow: hidden;
 }
 
 /* MAIN CONTENT */
@@ -62,6 +63,7 @@ h1, h2, h3, h4, .display-text {
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
+  background: var(--bg-light);
 }
 
 /* VIEWS CONTAINER */
@@ -493,7 +495,7 @@ h1, h2, h3, h4, .display-text {
 
 .pred-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 2rem;
 }
 

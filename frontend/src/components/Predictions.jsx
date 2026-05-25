@@ -137,7 +137,7 @@ export default function Predictions({ userRole, navigateTo }) {
     <div className="view">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 className="display-text" style={{ fontSize: '4.5rem', margin: 0, color: 'var(--bg-dark)' }}>Predicciones</h1>
+          <h1 className="display-text" style={{ fontSize: 'clamp(2.5rem, 8vw, 4.5rem)', margin: 0, color: 'var(--bg-dark)' }}>Predicciones</h1>
           <p style={{ color: 'var(--text-gray)', fontWeight: 600, marginTop: '-0.5rem' }}>Define tus resultados y mira cómo queda la tabla</p>
         </div>
         <div className="filters" style={{ marginBottom: 0 }}>

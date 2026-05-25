@@ -224,7 +224,7 @@ export default function Specials() {
           </div>
         </div>
       )}
-      <h1 className="display-text" style={{ fontSize: '4rem', marginBottom: '0.5rem' }}>Apuestas Especiales</h1>
+      <h1 className="display-text" style={{ fontSize: 'clamp(2.5rem, 8vw, 4rem)', marginBottom: '0.5rem' }}>Apuestas Especiales</h1>
       <p style={{ color: 'var(--text-gray)', fontWeight: 500, marginBottom: '2rem' }}>
         Predice los resultados finales del torneo.
         <span style={{ color: 'var(--gold)', marginLeft: '0.5rem' }}>

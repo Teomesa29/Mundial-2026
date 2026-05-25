@@ -59,7 +59,7 @@ export default function Leaderboard() {
 
   return (
     <div className="view">
-      <h1 className="display-text" style={{ fontSize: '4rem', marginBottom: '2rem' }}>Ranking Global</h1>
+      <h1 className="display-text" style={{ fontSize: 'clamp(2.5rem, 8vw, 4rem)', marginBottom: '2rem' }}>Ranking Global</h1>
 
       <div className="leaderboard-layout">
         <div className="table-container tilt-card" style={{ transformStyle: 'flat' }}>

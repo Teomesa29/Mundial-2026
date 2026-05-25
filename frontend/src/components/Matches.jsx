@@ -44,7 +44,7 @@ export default function Matches() {
 
   return (
     <div className="view">
-      <h1 className="display-text" style={{fontSize: '4rem', marginBottom: '2rem'}}>Partidos</h1>
+      <h1 className="display-text" style={{fontSize: 'clamp(2.5rem, 8vw, 4rem)', marginBottom: '2rem'}}>Partidos</h1>
       
       <div className="filters">
         <button className={`filter-btn ${activeTab === 'grupos' ? 'active' : ''}`} onClick={() => setActiveTab('grupos')}>Fase de Grupos</button>

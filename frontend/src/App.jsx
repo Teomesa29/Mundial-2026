@@ -107,7 +107,7 @@ function App() {
   }
 
   return (
-    <div className="app-container" style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+    <div className="app-container">
       <Sidebar
         currentView={currentView}
         navigateTo={navigateTo}
@@ -115,13 +115,7 @@ function App() {
         userRole={userRole}
       />
 
-      <main className="main-content" id="main" style={{ 
-        flex: 1, 
-        position: 'relative', 
-        height: '100%', 
-        overflowY: 'auto',
-        background: 'var(--bg-light)'
-      }}>
+      <main className="main-content" id="main">
         {isTransitioning && <LoadingScreen text="" isFixed={true} />}
         
         <div style={{
