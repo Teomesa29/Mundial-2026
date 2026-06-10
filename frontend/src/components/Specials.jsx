@@ -118,8 +118,8 @@ export default function Specials() {
     const globalDeadline = getGlobalDeadline();
     const catDeadline = new Date(cat.deadline);
     
-    // The actual deadline is the earliest of the two
-    const effectiveDeadline = globalDeadline && globalDeadline < catDeadline ? globalDeadline : catDeadline;
+    // The actual deadline is the global config entry deadline if set, otherwise fallback to category deadline
+    const effectiveDeadline = globalDeadline || catDeadline;
     const hasPassed = new Date() > effectiveDeadline;
     const isLocked = isGlobalLocked() || hasPassed;
 

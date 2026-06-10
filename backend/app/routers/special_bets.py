@@ -48,8 +48,19 @@ async def create_special_bet(bet: SpecialBetAnswerCreate, db: AsyncSession = Dep
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
     
+    # Bounded by config.entry_deadline if set
+    effective_deadline = category.deadline
+    if config and config.entry_deadline:
+        effective_deadline = config.entry_deadline
+        
     from datetime import datetime, timezone
-    if category.deadline <= datetime.now(timezone.utc):
+    # Ensure timezone awareness
+    if effective_deadline.tzinfo is None:
+        effective_deadline = effective_deadline.replace(tzinfo=timezone.utc)
+    else:
+        effective_deadline = effective_deadline.astimezone(timezone.utc)
+        
+    if effective_deadline <= datetime.now(timezone.utc):
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="El tiempo para enviar esta predicción ha expirado.")
 

@@ -3,6 +3,14 @@ import { api } from '../utils/api';
 import { getTranslatedName } from '../utils/translations';
 import LoadingScreen from './LoadingScreen';
 
+const toLocalISOString = (dateOrStr) => {
+  if (!dateOrStr) return '';
+  const date = new Date(dateOrStr);
+  if (isNaN(date.getTime())) return '';
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+};
+
 export default function AdminPanel() {
   const [stats, setStats] = useState({ total_users: 0, total_predictions: 0, matches_pending_update: 0 });
   const [matches, setMatches] = useState([]);
@@ -532,10 +540,10 @@ export default function AdminPanel() {
                     <label style={{marginBottom: 0}}>Predicciones de Llaves Abiertas</label>
                   </div>
                   <div className="form-group" style={{marginTop: '1.5rem'}}>
-                    <label>Fecha Límite Inscripción (UTC)</label>
+                    <label>Fecha Límite Inscripción</label>
                     <input type="datetime-local" className="form-input" 
-                      value={config.entry_deadline ? new Date(config.entry_deadline).toISOString().slice(0, 16) : ''} 
-                      onChange={e => setConfig({...config, entry_deadline: new Date(e.target.value).toISOString()})}/>
+                      value={config.entry_deadline ? toLocalISOString(config.entry_deadline) : ''} 
+                      onChange={e => setConfig({...config, entry_deadline: e.target.value ? new Date(e.target.value).toISOString() : null})}/>
                   </div>
                 </div>
               </div>
@@ -565,7 +573,7 @@ export default function AdminPanel() {
                 {specialBets.map(bet => {
                   const currentDeadlineStr = editingDeadline[bet.id] !== undefined
                     ? editingDeadline[bet.id]
-                    : (bet.deadline ? new Date(bet.deadline).toISOString().slice(0, 16) : '');
+                    : (bet.deadline ? toLocalISOString(bet.deadline) : '');
                   const isExpired = bet.deadline && new Date() > new Date(bet.deadline);
 
                   return (
@@ -586,7 +594,7 @@ export default function AdminPanel() {
                             value={currentDeadlineStr}
                             onChange={e => setEditingDeadline(prev => ({...prev, [bet.id]: e.target.value}))}
                           />
-                          {editingDeadline[bet.id] !== undefined && editingDeadline[bet.id] !== (bet.deadline ? new Date(bet.deadline).toISOString().slice(0, 16) : '') && (
+                          {editingDeadline[bet.id] !== undefined && editingDeadline[bet.id] !== (bet.deadline ? toLocalISOString(bet.deadline) : '') && (
                             <button
                               className="action-btn primary"
                               style={{padding: '4px 10px', fontSize: '0.75rem', whiteSpace: 'nowrap'}}

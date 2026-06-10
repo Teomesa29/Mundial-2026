@@ -419,6 +419,13 @@ async def update_config(body: PollaConfigUpdate, db: AsyncSession = Depends(get_
             if cat:
                 cat.points_reward = update_data[config_key]
     
+    # Sync special categories deadlines with config.entry_deadline if it was updated
+    if "entry_deadline" in update_data and update_data["entry_deadline"]:
+        stmt = select(SpecialBetCategory)
+        categories = (await db.execute(stmt)).scalars().all()
+        for cat in categories:
+            cat.deadline = config.entry_deadline
+
     await db.commit()
     await db.refresh(config)
     return config
