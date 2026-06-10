@@ -1,18 +1,65 @@
 import httpx
 import logging
 import asyncio
+import time
+from collections import deque
 from typing import Optional, Dict, Any
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Límite oficial de football-data.org para cuentas gratuitas con API key
+MAX_REQUESTS_PER_MINUTE = 10
 
 class FootballAPIClient:
     def __init__(self):
         self.base_url = settings.FOOTBALL_API_URL
         self.headers = {"X-Auth-Token": settings.FOOTBALL_API_KEY}
         self.timeout = 10.0
+        # Sliding window: almacena los timestamps de las últimas peticiones
+        self._request_timestamps: deque[float] = deque()
+
+    def _check_rate_limit(self) -> bool:
+        """
+        Verifica si podemos hacer otra petición sin exceder 10 req/min.
+        Usa una ventana deslizante in-memory (sin I/O a la base de datos).
+        Retorna True si hay presupuesto, False si se debe esperar.
+        """
+        now = time.monotonic()
+        # Limpiar timestamps más viejos que 60 segundos
+        while self._request_timestamps and (now - self._request_timestamps[0]) > 60:
+            self._request_timestamps.popleft()
+
+        if len(self._request_timestamps) >= MAX_REQUESTS_PER_MINUTE:
+            oldest = self._request_timestamps[0]
+            wait_needed = 60 - (now - oldest)
+            logger.warning(
+                f"Rate limit alcanzado ({len(self._request_timestamps)}/{MAX_REQUESTS_PER_MINUTE} req/min). "
+                f"Próximo slot disponible en {wait_needed:.1f}s."
+            )
+            return False
+
+        self._request_timestamps.append(now)
+        return True
+
+    async def _wait_for_rate_limit(self) -> None:
+        """
+        Espera activamente hasta que haya un slot disponible en la ventana de 60s.
+        """
+        while not self._check_rate_limit():
+            now = time.monotonic()
+            if self._request_timestamps:
+                oldest = self._request_timestamps[0]
+                wait_needed = 60 - (now - oldest) + 0.5  # +0.5s de margen
+                logger.info(f"Esperando {wait_needed:.1f}s para liberar slot de rate limit...")
+                await asyncio.sleep(wait_needed)
+            else:
+                await asyncio.sleep(1)
 
     async def _request(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
+        # Esperar hasta que haya un slot libre en la ventana de rate limit
+        await self._wait_for_rate_limit()
+
         url = f"{self.base_url}{endpoint}"
         
         for attempt in range(3):
@@ -69,3 +116,4 @@ class FootballAPIClient:
         return await self._request(f"/teams/{team_id}")
 
 football_api = FootballAPIClient()
+

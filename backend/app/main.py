@@ -1,7 +1,7 @@
 import time
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -18,17 +18,102 @@ from app.services.sync_service import sync_matches, sync_scorers, sync_standings
 logger = logging.getLogger("uvicorn.error")
 boot_time = time.time()
 
+from sqlalchemy import select, or_, and_
+from app.models.models import Match
+from app.models.enums import MatchStatus
+
+last_daily_sync_time = None
+
 async def auto_sync_loop():
-    while True:
-        try:
-            async with AsyncSessionLocal() as session:
+    global last_daily_sync_time
+    # Esperar un poco al inicio para no interferir con la inicialización del servidor
+    await asyncio.sleep(10)
+    
+    # Sincronización inicial si la BD está vacía
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(Match).limit(1)
+            any_match = (await session.execute(stmt)).scalar_one_or_none()
+            if not any_match:
+                logger.info("Base de datos de partidos vacía. Ejecutando sincronización inicial completa...")
                 await sync_matches(session)
                 await sync_standings(session)
-                if datetime.now().minute == 0:
-                    await sync_scorers(session)
+                last_daily_sync_time = datetime.now(timezone.utc)
+    except Exception as e:
+        logger.error(f"Error en sincronización inicial: {e}")
+
+    while True:
+        sleep_minutes = 2  # Por defecto durante partidos activos
+        try:
+            async with AsyncSessionLocal() as session:
+                now = datetime.now(timezone.utc)
+
+                # 1. Comprobar si hay partidos activos o por empezar en los próximos 15 minutos
+                # Un partido se considera activo si:
+                # - Su estado es 'live'
+                # - Su estado es 'scheduled' y está dentro de la ventana:
+                #   desde 15 minutos antes del inicio hasta 3 horas después del inicio
+                active_matches_stmt = select(Match).where(
+                    or_(
+                        Match.status == MatchStatus.live,
+                        and_(
+                            Match.status == MatchStatus.scheduled,
+                            Match.match_date <= now + timedelta(minutes=15),
+                            Match.match_date >= now - timedelta(hours=3)
+                        )
+                    )
+                )
+                active_matches_res = await session.execute(active_matches_stmt)
+                active_matches = active_matches_res.scalars().all()
+                is_active_mode = len(active_matches) > 0
+                
+                # 2. Determinar qué sincronizar
+                # El rate limiter por minuto en FootballAPIClient se encarga de no exceder
+                # los 10 req/min, así que aquí solo decidimos la frecuencia del loop.
+                if is_active_mode:
+                    logger.info(f"Modo Activo: {len(active_matches)} partido(s) activo(s). Sincronizando marcadores...")
+                    await sync_matches(session)
+                    sleep_minutes = 2  # Actualizar marcadores cada 2 minutos durante partidos en vivo
+                else:
+                    # En modo inactivo, calcular el tiempo restante hasta el próximo partido
+                    next_match_stmt = select(Match).where(
+                        Match.status == MatchStatus.scheduled,
+                        Match.match_date > now
+                    ).order_by(Match.match_date.asc()).limit(1)
+                    next_match_res = await session.execute(next_match_stmt)
+                    next_match = next_match_res.scalar_one_or_none()
+                    
+                    if next_match:
+                        time_to_match = next_match.match_date - now
+                        time_to_match_minutes = int(time_to_match.total_seconds() / 60)
+                        
+                        # Despertarse 15 minutos antes del próximo partido, pero dormir como máximo 180 minutos (3 horas)
+                        sleep_minutes = max(5, min(time_to_match_minutes - 15, 180))
+                        logger.info(
+                            f"Modo Inactivo: Próximo partido en {time_to_match_minutes} minutos. "
+                            f"Durmiendo por {sleep_minutes} minutos..."
+                        )
+                    else:
+                        # Si no hay partidos programados
+                        sleep_minutes = 180
+                        logger.info("Modo Inactivo: Sin partidos programados pendientes. Durmiendo por 3 horas...")
+                
+                # 3. Sincronización diaria obligatoria (Standings, Scorers y Matches para mantenimiento de BD)
+                # Ocurre cada 24 horas. El rate limiter por minuto se encarga de no saturar.
+                if last_daily_sync_time is None or (now - last_daily_sync_time) > timedelta(hours=24):
+                    logger.info("Ejecutando sincronización diaria de mantenimiento (Standings, Scorers y Matches)...")
+                    if not is_active_mode:
+                        # Si no se sincronizó arriba, sincronizar matches ahora
+                        await sync_matches(session)
+                    await sync_standings(session)
+                    last_daily_sync_time = now
+                    logger.info("Sincronización diaria de mantenimiento finalizada con éxito.")
+                    
         except Exception as e:
-            logger.error(f"Sync error: {e}")
-        await asyncio.sleep(settings.SYNC_INTERVAL_MINUTES * 60)
+            logger.error(f"Error en auto_sync_loop: {e}")
+            sleep_minutes = 7  # reintentar pronto
+            
+        await asyncio.sleep(sleep_minutes * 60)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
