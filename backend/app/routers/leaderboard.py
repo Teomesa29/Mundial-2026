@@ -90,10 +90,28 @@ async def get_top_n(n: int, db: AsyncSession = Depends(get_db)):
 
 @router.get("/me")
 async def get_my_ranking(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # count users with more points
-    result = await db.execute(select(func.count(User.id)).where(User.total_points > current_user.total_points))
-    position = result.scalar() + 1
+    # Try fetching the rank from the materialized view first
+    try:
+        lb_stmt = text("SELECT posicion FROM leaderboard WHERE user_id = :user_id")
+        result = await db.execute(lb_stmt, {"user_id": current_user.id})
+        position = result.scalar()
+        if position is not None:
+            return {"position": position}
+    except Exception as e:
+        import logging
+        logger = logging.getLogger("uvicorn.error")
+        logger.error(f"Error fetching position from leaderboard view: {e}")
+
+    # Fallback to COUNT DISTINCT (Dense rank calculation)
+    # Dense rank: number of distinct total_points values that are higher, plus 1
+    res = await db.execute(
+        select(func.count(func.distinct(User.total_points)))
+        .where(User.total_points > current_user.total_points)
+        .where(User.is_active == True)
+    )
+    position = res.scalar() + 1
     return {"position": position}
+
 
 @router.get("/history")
 async def get_history(db: AsyncSession = Depends(get_db)):
