@@ -294,6 +294,28 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
         if not data or 'matches' not in data:
             return result
             
+        # Merge live matches to get real-time score and status updates
+        try:
+            live_data = await football_api.get_live_matches()
+            if live_data and 'matches' in live_data:
+                live_dict = {m['id']: m for m in live_data['matches']}
+                for i, match in enumerate(data['matches']):
+                    if match['id'] in live_dict:
+                        data['matches'][i] = live_dict[match['id']]
+        except Exception as e:
+            logger.warning(f"Error merging live matches in sync: {e}")
+            
+        # Merge finished matches to get final scores as soon as they complete
+        try:
+            finished_data = await football_api.get_finished_matches()
+            if finished_data and 'matches' in finished_data:
+                finished_dict = {m['id']: m for m in finished_data['matches']}
+                for i, match in enumerate(data['matches']):
+                    if match['id'] in finished_dict:
+                        data['matches'][i] = finished_dict[match['id']]
+        except Exception as e:
+            logger.warning(f"Error merging finished matches in sync: {e}")
+
         # Sort matches by date and then by ID to ensure a stable sequence (1-104)
         # This allows us to map venues manually using MATCH_STADIUM_MAPPING
         api_matches = sorted(data['matches'], key=lambda x: (x.get('utcDate', ''), x.get('id', 0)))
