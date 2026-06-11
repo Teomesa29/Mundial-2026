@@ -98,6 +98,8 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int) -> None:
         await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard"))
         await db.commit()
     except Exception as e:
+        # Rollback the failed transaction first
+        await db.rollback()
         # Si falla el concurrente (ej. no hay índice o primera vez), intentar normal
         try:
             await db.execute(text("REFRESH MATERIALIZED VIEW leaderboard"))

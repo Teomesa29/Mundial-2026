@@ -1,15 +1,13 @@
 import time
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 from .config import settings
 
-# Async Engine (for API runtime)
+# Async Engine (for API runtime) - Optimized with NullPool to allow Neon DB to autosuspend
 async_engine = create_async_engine(
     settings.DATABASE_URL,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_recycle=settings.DB_POOL_RECYCLE,
-    pool_pre_ping=True,
+    poolclass=NullPool,
     connect_args={"ssl": "require"} if settings.is_production else {}
 )
 
@@ -19,13 +17,10 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
-# Sync Engine (for Alembic migrations)
+# Sync Engine (for Alembic migrations) - Optimized with NullPool
 sync_engine = create_engine(
     settings.DATABASE_URL_SYNC,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_recycle=settings.DB_POOL_RECYCLE,
-    pool_pre_ping=True,
+    poolclass=NullPool,
     connect_args={"sslmode": "require"} if settings.is_production else {}
 )
 

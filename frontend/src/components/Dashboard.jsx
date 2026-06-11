@@ -12,6 +12,7 @@ export default function Dashboard({ navigateTo }) {
   const [loading, setLoading] = useState(true);
 
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [pollInterval, setPollInterval] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,6 +36,23 @@ export default function Dashboard({ navigateTo }) {
           predictionsCount: completedPreds,
           rank: 'Participante' // Could be dynamic
         });
+
+        // Determine dynamic poll interval to avoid keeping Neon DB awake unnecessarily
+        const hasLive = live.length > 0;
+        const hasMatchSoon = upcoming.some(m => {
+          const matchDate = new Date(m.match_date || m.utc_date);
+          const now = new Date();
+          const diffMs = matchDate - now;
+          return diffMs > 0 && diffMs < 12 * 60 * 60 * 1000; // next 12 hours
+        });
+
+        if (hasLive) {
+          setPollInterval(60000); // Poll every 1 min during live matches
+        } else if (hasMatchSoon) {
+          setPollInterval(1800000); // Poll every 30 min if a match is starting soon today
+        } else {
+          setPollInterval(null); // Disable polling if no matches today
+        }
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
       } finally {
@@ -42,16 +60,6 @@ export default function Dashboard({ navigateTo }) {
       }
     };
     fetchData();
-
-    // Poll for live matches every 30 seconds
-    const livePoll = setInterval(async () => {
-      try {
-        const live = await api.get('/matches/live');
-        setLiveMatches(live);
-      } catch (err) {
-        console.error('Error polling live matches:', err);
-      }
-    }, 30000);
 
     // Countdown logic
     const targetDate = new Date('2026-06-11T19:00:00Z');
@@ -94,9 +102,29 @@ export default function Dashboard({ navigateTo }) {
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       clearInterval(timer);
-      clearInterval(livePoll);
     };
   }, []);
+
+  // Dynamic Polling Effect
+  useEffect(() => {
+    if (!pollInterval) return;
+
+    const livePoll = setInterval(async () => {
+      try {
+        const live = await api.get('/matches/live');
+        setLiveMatches(live);
+        
+        // If live matches ended, slow down polling to 30 minutes
+        if (live.length === 0) {
+          setPollInterval(1800000);
+        }
+      } catch (err) {
+        console.error('Error polling live matches:', err);
+      }
+    }, pollInterval);
+
+    return () => clearInterval(livePoll);
+  }, [pollInterval]);
 
   const addToRefs = (el) => {
     if (el && !tiltRefs.current.includes(el)) {
