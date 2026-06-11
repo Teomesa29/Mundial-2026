@@ -311,6 +311,14 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
             elif status_str == "POSTPONED":
                 api_status = MatchStatus.postponed
                 
+            # If the scheduled time has passed and the match is not finished/postponed,
+            # automatically treat it as live.
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+            match_utc = datetime.fromisoformat(match_data['utcDate'].replace('Z', '+00:00'))
+            if api_status == MatchStatus.scheduled and match_utc <= now:
+                api_status = MatchStatus.live
+                
             home_score = match_data.get('score', {}).get('fullTime', {}).get('home')
             away_score = match_data.get('score', {}).get('fullTime', {}).get('away')
             
@@ -339,14 +347,30 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                         result.updated += 1
                     continue
 
+                # Keep database status if it is more advanced than API status
+                target_status = api_status
+                if db_match.status == MatchStatus.live and api_status == MatchStatus.scheduled:
+                    target_status = MatchStatus.live
+                
+                # Keep database scores if API scores are None
+                target_home_score = home_score if home_score is not None else db_match.home_score
+                target_away_score = away_score if away_score is not None else db_match.away_score
+
+                # Default to 0 - 0 if the match is live but scores are still None
+                if target_status == MatchStatus.live:
+                    if target_home_score is None:
+                        target_home_score = 0
+                    if target_away_score is None:
+                        target_away_score = 0
+
                 # Update
-                if db_match.home_score != home_score or db_match.away_score != away_score or db_match.status != api_status or stadium_updated:
-                    db_match.home_score = home_score
-                    db_match.away_score = away_score
-                    db_match.status = api_status
+                if db_match.home_score != target_home_score or db_match.away_score != target_away_score or db_match.status != target_status or stadium_updated:
+                    db_match.home_score = target_home_score
+                    db_match.away_score = target_away_score
+                    db_match.status = target_status
                     db_match.match_number = tournament_match_number
                     
-                    if api_status == MatchStatus.finished and home_score is not None and away_score is not None:
+                    if target_status == MatchStatus.finished and target_home_score is not None and target_away_score is not None:
                         await db.commit()
                         await calculate_predictions_points(db, db_match.id)
                     else:
@@ -383,6 +407,14 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                         group_id = group_obj.id
 
                 # Create the match
+                init_home_score = home_score
+                init_away_score = away_score
+                if api_status == MatchStatus.live:
+                    if init_home_score is None:
+                        init_home_score = 0
+                    if init_away_score is None:
+                        init_away_score = 0
+
                 new_match = Match(
                     external_match_id=ext_id,
                     home_team_id=home_team.id,
@@ -393,8 +425,8 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                     group_id=group_id,
                     match_number=tournament_match_number,
                     status=api_status,
-                    home_score=home_score,
-                    away_score=away_score
+                    home_score=init_home_score,
+                    away_score=init_away_score
                 )
                 db.add(new_match)
                 result.created += 1
