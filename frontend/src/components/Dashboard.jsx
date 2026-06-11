@@ -26,7 +26,7 @@ export default function Dashboard({ navigateTo }) {
         setTopLeaders(leaders);
         setLiveMatches(live);
         setUpcomingMatches(upcoming);
-        
+
         // Calculate user summary
         const totalMatches = live.length + upcoming.length + (myPreds?.length || 0); // Simplified
         const completedPreds = myPreds?.length || 0;
@@ -54,7 +54,7 @@ export default function Dashboard({ navigateTo }) {
     }, 30000);
 
     // Countdown logic
-    const targetDate = new Date('2026-06-11T20:00:00Z');
+    const targetDate = new Date('2026-06-11T19:00:00Z');
     const timer = setInterval(() => {
       const now = new Date();
       const difference = targetDate - now;
@@ -75,8 +75,8 @@ export default function Dashboard({ navigateTo }) {
       tiltRefs.current.forEach(card => {
         if (!card) return;
         const rect = card.getBoundingClientRect();
-        if(e.clientX >= rect.left && e.clientX <= rect.right && 
-           e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+          e.clientY >= rect.top && e.clientY <= rect.bottom) {
           const x = e.clientX - rect.left;
           const y = e.clientY - rect.top;
           const centerX = rect.width / 2;
@@ -105,7 +105,7 @@ export default function Dashboard({ navigateTo }) {
   };
 
   if (loading) return <LoadingScreen text="DASHBOARD..." />;
-  
+
   return (
     <div className="view dashboard-view">
       <section className="hero-section">
@@ -143,7 +143,7 @@ export default function Dashboard({ navigateTo }) {
 
       <div className="dashboard-grid">
         <div className="main-widgets">
-          
+
           <div className="summary-card glass-card tilt-card" ref={addToRefs}>
             <div className="summary-info">
               <h3 className="widget-title">Tu Resumen</h3>
@@ -171,7 +171,7 @@ export default function Dashboard({ navigateTo }) {
                 {topLeaders[1] && (
                   <div className="podium-col second tilt-card" ref={addToRefs}>
                     <div className="podium-card">
-                      <div className="p-avatar">{(topLeaders[1].display_name || '??').substring(0,2).toUpperCase()}</div>
+                      <div className="p-avatar">{(topLeaders[1].display_name || '??').substring(0, 2).toUpperCase()}</div>
                       <div className="p-name">{topLeaders[1].display_name || 'Usuario'}</div>
                       <div className="p-pts">{topLeaders[1].total_points || 0} pts</div>
                     </div>
@@ -183,7 +183,7 @@ export default function Dashboard({ navigateTo }) {
                   <div className="podium-col first tilt-card" ref={addToRefs}>
                     <div className="podium-card">
                       <div className="p-avatar">
-                        {(topLeaders[0].display_name || '??').substring(0,2).toUpperCase()}
+                        {(topLeaders[0].display_name || '??').substring(0, 2).toUpperCase()}
                       </div>
                       <div className="p-name">{topLeaders[0].display_name || 'Usuario'}</div>
                       <div className="p-pts">{topLeaders[0].total_points || 0} pts</div>
@@ -195,7 +195,7 @@ export default function Dashboard({ navigateTo }) {
                 {topLeaders[2] && (
                   <div className="podium-col third tilt-card" ref={addToRefs}>
                     <div className="podium-card">
-                      <div className="p-avatar">{(topLeaders[2].display_name || '??').substring(0,2).toUpperCase()}</div>
+                      <div className="p-avatar">{(topLeaders[2].display_name || '??').substring(0, 2).toUpperCase()}</div>
                       <div className="p-name">{topLeaders[2].display_name || 'Usuario'}</div>
                       <div className="p-pts">{topLeaders[2].total_points || 0} pts</div>
                     </div>
@@ -204,7 +204,7 @@ export default function Dashboard({ navigateTo }) {
                 )}
               </div>
             ) : (
-              <div style={{textAlign: 'center', color: 'var(--text-gray)', paddingTop: '4rem'}}>
+              <div style={{ textAlign: 'center', color: 'var(--text-gray)', paddingTop: '4rem' }}>
                 Esperando resultados...
               </div>
             )}
@@ -218,25 +218,25 @@ export default function Dashboard({ navigateTo }) {
               {upcomingMatches.some(m => {
                 const matchDate = new Date(m.match_date);
                 const today = new Date();
-                return matchDate.getDate() === today.getDate() && 
-                       matchDate.getMonth() === today.getMonth() && 
-                       matchDate.getFullYear() === today.getFullYear();
+                return matchDate.getDate() === today.getDate() &&
+                  matchDate.getMonth() === today.getMonth() &&
+                  matchDate.getFullYear() === today.getFullYear();
               }) && <span className="badge-urgency">¡Juega Hoy!</span>}
             </div>
             {upcomingMatches.length > 0 ? upcomingMatches.slice(0, 3).map(m => (
               <div key={m.id} className="match-card-mini mc-dashboard tilt-card" ref={addToRefs} onClick={() => navigateTo('predictions')}>
-                <div style={{display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between'}}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1}}>
+                <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
                     <img src={m.home_team?.logo_url || `https://flagcdn.com/w40/${m.home_team?.country_code?.toLowerCase()}.png`} className="team-flag-mini" alt="" />
                     <div className="mc-team">{getTranslatedName(m.home_team?.name)}</div>
                   </div>
                   <div className="mc-time">
                     <span className="mc-time-span">{(() => {
                       const d = new Date(m.match_date || m.utc_date);
-                      return isNaN(d.getTime()) ? '--:--' : d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                      return isNaN(d.getTime()) ? '--:--' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     })()}</span>
                   </div>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-end'}}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-end' }}>
                     <div className="mc-team">{getTranslatedName(m.away_team?.name)}</div>
                     <img src={m.away_team?.logo_url || `https://flagcdn.com/w40/${m.away_team?.country_code?.toLowerCase()}.png`} className="team-flag-mini" alt="" />
                   </div>
@@ -246,7 +246,7 @@ export default function Dashboard({ navigateTo }) {
                 </div>
               </div>
             )) : (
-              <div className="match-card-mini mc-dashboard" style={{background: 'rgba(0,0,0,0.05)', justifyContent: 'center', color: 'var(--text-gray)'}}>
+              <div className="match-card-mini mc-dashboard" style={{ background: 'rgba(0,0,0,0.05)', justifyContent: 'center', color: 'var(--text-gray)' }}>
                 No hay partidos hoy
               </div>
             )}
@@ -258,21 +258,21 @@ export default function Dashboard({ navigateTo }) {
             </div>
             {liveMatches.length > 0 ? liveMatches.map(m => (
               <div key={m.id} className="match-card-mini mc-dashboard mc-live tilt-card" ref={addToRefs}>
-                <div style={{display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between'}}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1}}>
+                <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
                     <img src={m.home_team?.logo_url || `https://flagcdn.com/w40/${m.home_team?.country_code?.toLowerCase()}.png`} className="team-flag-mini" alt="" />
                     <div className="mc-team">{getTranslatedName(m.home_team?.name)}</div>
                   </div>
                   <div className="mc-score">{m.home_score} - {m.away_score}</div>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-end'}}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-end' }}>
                     <div className="mc-team">{getTranslatedName(m.away_team?.name)}</div>
                     <img src={m.away_team?.logo_url || `https://flagcdn.com/w40/${m.away_team?.country_code?.toLowerCase()}.png`} className="team-flag-mini" alt="" />
                   </div>
                 </div>
-                <div style={{position: 'absolute', top: '5px', right: '5px'}}><span className="live-dot"></span></div>
+                <div style={{ position: 'absolute', top: '5px', right: '5px' }}><span className="live-dot"></span></div>
               </div>
             )) : (
-              <div className="match-card-mini mc-dashboard" style={{background: 'rgba(0,0,0,0.05)', justifyContent: 'center', color: 'var(--text-gray)'}}>
+              <div className="match-card-mini mc-dashboard" style={{ background: 'rgba(0,0,0,0.05)', justifyContent: 'center', color: 'var(--text-gray)' }}>
                 No hay partidos en vivo
               </div>
             )}
