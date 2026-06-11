@@ -247,7 +247,7 @@ CREATE INDEX idx_activity_log_date ON activity_log(created_at);
 -- Optimizada para lecturas ultra-rápidas en el frontend
 CREATE MATERIALIZED VIEW leaderboard AS
 SELECT 
-    RANK() OVER (ORDER BY u.total_points DESC, (
+    DENSE_RANK() OVER (ORDER BY u.total_points DESC, (
         SELECT COUNT(id) FROM match_predictions WHERE user_id = u.id AND is_exact_score = true
     ) DESC) as posicion,
     u.id as user_id,
