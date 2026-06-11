@@ -18,6 +18,12 @@ from app.services.sync_service import sync_matches, sync_scorers, sync_standings
 logger = logging.getLogger("uvicorn.error")
 boot_time = time.time()
 
+# Cache for database health check to prevent frequent wakeups of Neon DB
+last_db_check_time = None
+cached_db_ok = False
+cached_db_response_ms = 0.0
+DB_CHECK_CACHE_DURATION_SECONDS = 3600  # 60 minutes
+
 from sqlalchemy import select, or_, and_
 from app.models.models import Match
 from app.models.enums import MatchStatus
@@ -87,16 +93,16 @@ async def auto_sync_loop():
                         time_to_match = next_match.match_date - now
                         time_to_match_minutes = int(time_to_match.total_seconds() / 60)
                         
-                        # Despertarse 15 minutos antes del próximo partido, pero dormir como máximo 180 minutos (3 horas)
-                        sleep_minutes = max(5, min(time_to_match_minutes - 15, 180))
+                        # Despertarse 15 minutos antes del próximo partido, pero dormir como máximo 720 minutos (12 horas)
+                        sleep_minutes = max(5, min(time_to_match_minutes - 15, 720))
                         logger.info(
                             f"Modo Inactivo: Próximo partido en {time_to_match_minutes} minutos. "
                             f"Durmiendo por {sleep_minutes} minutos..."
                         )
                     else:
                         # Si no hay partidos programados
-                        sleep_minutes = 180
-                        logger.info("Modo Inactivo: Sin partidos programados pendientes. Durmiendo por 3 horas...")
+                        sleep_minutes = 720
+                        logger.info("Modo Inactivo: Sin partidos programados pendientes. Durmiendo por 12 horas...")
                 
                 # 3. Sincronización diaria obligatoria (Standings, Scorers y Matches para mantenimiento de BD)
                 # Ocurre cada 24 horas. El rate limiter por minuto se encarga de no saturar.
@@ -223,8 +229,23 @@ async def root():
     }
 
 @app.api_route("/health", methods=["GET", "HEAD"])
-async def health_check():
-    db_ok, response_ms = await check_db_connection()
+async def health_check(refresh: bool = False):
+    global last_db_check_time, cached_db_ok, cached_db_response_ms
+    
+    now = time.time()
+    if (
+        refresh
+        or last_db_check_time is None
+        or (now - last_db_check_time) > DB_CHECK_CACHE_DURATION_SECONDS
+    ):
+        db_ok, response_ms = await check_db_connection()
+        cached_db_ok = db_ok
+        cached_db_response_ms = response_ms
+        last_db_check_time = now
+    else:
+        db_ok = cached_db_ok
+        response_ms = cached_db_response_ms
+        
     uptime_seconds = int(time.time() - boot_time)
     
     health_status = "healthy" if db_ok else "degraded"
@@ -236,7 +257,8 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
         "database": {
             "status": "connected" if db_ok else "disconnected",
-            "response_time_ms": response_ms
+            "response_time_ms": response_ms,
+            "cached": not (refresh or last_db_check_time == now)
         },
         "uptime_seconds": uptime_seconds
     }
