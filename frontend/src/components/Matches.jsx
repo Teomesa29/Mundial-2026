@@ -73,7 +73,13 @@ export default function Matches() {
                 <div className="group-section" key={groupName}>
                   <h2 className="group-title">{groupName}</h2>
                   <div className="matches-list">
-                    {groupMatches.map(m => (
+                    {[...groupMatches]
+                      .sort((a, b) => {
+                        const dateA = new Date(a.match_date || a.utc_date).getTime();
+                        const dateB = new Date(b.match_date || b.utc_date).getTime();
+                        return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
+                      })
+                      .map(m => (
                       <div key={m.id} className="match-card-modern tilt-card">
                         <div className="match-card-header">
                           <span className="match-date">

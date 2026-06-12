@@ -417,7 +417,13 @@ export default function AdminPanel() {
                       <tr><th>Fecha</th><th>Encuentro</th><th>Estado</th><th>Resultado</th><th>Acción</th></tr>
                     </thead>
                     <tbody>
-                      {groupMatches.map(m => (
+                      {[...groupMatches]
+                        .sort((a, b) => {
+                          const dateA = new Date(a.match_date || a.utc_date).getTime();
+                          const dateB = new Date(b.match_date || b.utc_date).getTime();
+                          return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
+                        })
+                        .map(m => (
                         <tr key={m.id}>
                           <td style={{fontSize: '0.75rem', color: '#666'}}>
                             {new Date(m.match_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}

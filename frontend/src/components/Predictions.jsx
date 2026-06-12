@@ -289,7 +289,13 @@ export default function Predictions({ userRole, navigateTo }) {
                       <div style={{ height: '2px', flex: 1, background: 'linear-gradient(90deg, rgba(0,0,0,0.05), transparent)' }}></div>
                     </div>
                     <div className="pred-grid">
-                      {groupMatches.map(match => {
+                      {[...groupMatches]
+                        .sort((a, b) => {
+                          const dateA = new Date(a.match_date || a.utc_date).getTime();
+                          const dateB = new Date(b.match_date || b.utc_date).getTime();
+                          return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
+                        })
+                        .map(match => {
                         const pred = predictions[match.id];
                         const isSaving = savingId === match.id;
                         const statusText = match.status === 'scheduled' || match.status === 'TIMED' || match.status === 'SCHEDULED' ? 'Pendiente' :
