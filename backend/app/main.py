@@ -73,15 +73,50 @@ async def auto_sync_loop():
                 active_matches = active_matches_res.scalars().all()
                 is_active_mode = len(active_matches) > 0
                 
-                # 2. Determinar qué sincronizar
-                # El rate limiter por minuto en FootballAPIClient se encarga de no exceder
-                # los 10 req/min, así que aquí solo decidimos la frecuencia del loop.
+                # 2. Si no hay partidos activos, comprobar si es horario de inactividad (Quiet Window: 11 PM - 11 AM Colombia)
+                # Solo dormimos las 12 horas si NO hay partidos activos en juego.
+                if not is_active_mode:
+                    colombia_tz = timezone(timedelta(hours=-5))
+                    now_colombia = datetime.now(colombia_tz)
+                    
+                    if now_colombia.hour < 11 or now_colombia.hour >= 23:
+                        if now_colombia.hour < 11:
+                            quiet_wake = now_colombia.replace(hour=11, minute=0, second=0, microsecond=0)
+                        else:
+                            quiet_wake = (now_colombia + timedelta(days=1)).replace(hour=11, minute=0, second=0, microsecond=0)
+                        
+                        quiet_wake_utc = quiet_wake.astimezone(timezone.utc)
+                        wake_target_utc = quiet_wake_utc
+                        
+                        # Comprobar si hay un próximo partido programado antes del fin del horario de inactividad
+                        next_match_stmt = select(Match).where(
+                            Match.status == MatchStatus.scheduled,
+                            Match.match_date > now
+                        ).order_by(Match.match_date.asc()).limit(1)
+                        next_match_res = await session.execute(next_match_stmt)
+                        next_match = next_match_res.scalar_one_or_none()
+                        
+                        if next_match:
+                            match_wake_utc = next_match.match_date - timedelta(minutes=15)
+                            if match_wake_utc < wake_target_utc:
+                                wake_target_utc = match_wake_utc
+                                
+                        sleep_seconds = max(60.0, (wake_target_utc - now).total_seconds())
+                        logger.info(
+                            f"Horario Inactivo (11 PM - 11 AM Colombia) y sin partidos activos. "
+                            f"Dormido durante {int(sleep_seconds / 60)} minutos..."
+                        )
+                        await asyncio.sleep(sleep_seconds)
+                        continue
+
+                # 3. Determinar qué sincronizar y la frecuencia
                 if is_active_mode:
                     logger.info(f"Modo Activo: {len(active_matches)} partido(s) activo(s). Sincronizando marcadores...")
                     await sync_matches(session)
                     sleep_minutes = 2  # Actualizar marcadores cada 2 minutos durante partidos en vivo
                 else:
-                    # En modo inactivo, calcular el tiempo restante hasta el próximo partido
+                    # En modo inactivo (fuera del quiet window pero sin partidos activos),
+                    # calcular el tiempo restante hasta el próximo partido
                     next_match_stmt = select(Match).where(
                         Match.status == MatchStatus.scheduled,
                         Match.match_date > now
@@ -104,7 +139,7 @@ async def auto_sync_loop():
                         sleep_minutes = 720
                         logger.info("Modo Inactivo: Sin partidos programados pendientes. Durmiendo por 12 horas...")
                 
-                # 3. Sincronización diaria obligatoria (Standings, Scorers y Matches para mantenimiento de BD)
+                # 4. Sincronización diaria obligatoria (Standings, Scorers y Matches para mantenimiento de BD)
                 # Ocurre cada 24 horas. El rate limiter por minuto se encarga de no saturar.
                 if last_daily_sync_time is None or (now - last_daily_sync_time) > timedelta(hours=24):
                     logger.info("Ejecutando sincronización diaria de mantenimiento (Standings, Scorers y Matches)...")
@@ -233,18 +268,33 @@ async def health_check(refresh: bool = False):
     global last_db_check_time, cached_db_ok, cached_db_response_ms
     
     now = time.time()
-    if (
-        refresh
-        or last_db_check_time is None
-        or (now - last_db_check_time) > DB_CHECK_CACHE_DURATION_SECONDS
-    ):
+    
+    # Determinar si estamos en el horario de inactividad (11 PM - 11 AM Colombia, UTC-5)
+    colombia_tz = timezone(timedelta(hours=-5))
+    now_colombia = datetime.now(colombia_tz)
+    is_quiet_window = now_colombia.hour < 11 or now_colombia.hour >= 23
+    
+    # Forzar el uso de la caché durante el horario de inactividad para no despertar la base de datos
+    use_cache = (
+        not refresh
+        and (
+            is_quiet_window
+            or (last_db_check_time is not None and (now - last_db_check_time) <= DB_CHECK_CACHE_DURATION_SECONDS)
+        )
+    )
+    
+    # Si es el primer check (inicio del servidor), obligamos a validar contra la BD aunque sea horario inactivo
+    if last_db_check_time is None:
+        use_cache = False
+        
+    if use_cache:
+        db_ok = cached_db_ok
+        response_ms = cached_db_response_ms
+    else:
         db_ok, response_ms = await check_db_connection()
         cached_db_ok = db_ok
         cached_db_response_ms = response_ms
         last_db_check_time = now
-    else:
-        db_ok = cached_db_ok
-        response_ms = cached_db_response_ms
         
     uptime_seconds = int(time.time() - boot_time)
     
