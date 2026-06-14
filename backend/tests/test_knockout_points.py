@@ -88,10 +88,10 @@ async def test_calculate_predictions_points_knockout_penalties():
     # Mock PollaConfig
     config = MagicMock(spec=PollaConfig)
     config.points_exact_score = 5
-    config.points_correct_result = 2
+    config.points_correct_result = 3
     
     # Mock Predictions
-    # Pred 1: Exact draw (1-1) AND guessed penalties winner (101) correctly -> 5 + 5 = 10 points
+    # Pred 1: Exact draw (1-1) AND guessed penalties winner (101) correctly -> 5 + 1 = 6 points
     pred1 = MagicMock(spec=MatchPrediction)
     pred1.predicted_home_score = 1
     pred1.predicted_away_score = 1
@@ -107,7 +107,7 @@ async def test_calculate_predictions_points_knockout_penalties():
     pred2.points_earned = 0
     pred2.user_id = 2
     
-    # Pred 3: Correct draw outcome but wrong score (2-2) AND guessed penalties winner (101) correctly -> 2 + 3 = 5 points
+    # Pred 3: Correct draw outcome but wrong score (2-2) AND guessed penalties winner (101) correctly -> 3 + 1 = 4 points
     pred3 = MagicMock(spec=MatchPrediction)
     pred3.predicted_home_score = 2
     pred3.predicted_away_score = 2
@@ -115,7 +115,7 @@ async def test_calculate_predictions_points_knockout_penalties():
     pred3.points_earned = 0
     pred3.user_id = 3
     
-    # Pred 4: Correct draw outcome but wrong score (2-2) BUT guessed penalties winner (102) incorrectly -> 2 points
+    # Pred 4: Correct draw outcome but wrong score (2-2) BUT guessed penalties winner (102) incorrectly -> 3 points
     pred4 = MagicMock(spec=MatchPrediction)
     pred4.predicted_home_score = 2
     pred4.predicted_away_score = 2
@@ -123,8 +123,7 @@ async def test_calculate_predictions_points_knockout_penalties():
     pred4.points_earned = 0
     pred4.user_id = 4
 
-    # Pred 5: Predicted winner (2-1 home win) but match was a draw.
-    # But guessed penalties winner (101) correctly -> 3 points
+    # Pred 5: Predicted winner (2-1 home win) but match was a draw -> 0 points
     pred5 = MagicMock(spec=MatchPrediction)
     pred5.predicted_home_score = 2
     pred5.predicted_away_score = 1
@@ -159,6 +158,6 @@ async def test_calculate_predictions_points_knockout_penalties():
     # Assertions
     assert pred1.points_earned == 6
     assert pred2.points_earned == 5
-    assert pred3.points_earned == 3
-    assert pred4.points_earned == 2
-    assert pred5.points_earned == 1
+    assert pred3.points_earned == 4
+    assert pred4.points_earned == 3
+    assert pred5.points_earned == 0
