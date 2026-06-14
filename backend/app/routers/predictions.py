@@ -279,8 +279,8 @@ async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = D
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     
-    if config:
-        if not config.is_registration_open:
+    if config and current_user.role.value != "admin":
+        if not config.is_bracket_open:
             raise HTTPException(status_code=400, detail="El registro de llaves está cerrado.")
         if config.entry_deadline:
             deadline = config.entry_deadline.replace(tzinfo=timezone.utc) if config.entry_deadline.tzinfo is None else config.entry_deadline

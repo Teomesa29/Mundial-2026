@@ -10,7 +10,9 @@ export default function Predictions({ userRole, navigateTo }) {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [saveMessage, setSaveMessage] = useState({}); // {matchId: 'message'}
-  const [activeTab, setActiveTab] = useState('list'); // 'list' or 'forecast'
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('predictionsActiveTab') || 'list';
+  }); // 'list' or 'forecast'
   const [forecast, setForecast] = useState([]);
   const [forecastLoading, setForecastLoading] = useState(false);
 
@@ -105,6 +107,7 @@ export default function Predictions({ userRole, navigateTo }) {
 
   const handleTabChange = async (tab) => {
     setActiveTab(tab);
+    localStorage.setItem('predictionsActiveTab', tab);
     if (tab === 'forecast' && (forecast.length === 0 || api.isStale('/predictions/forecast'))) {
       fetchForecast();
     }

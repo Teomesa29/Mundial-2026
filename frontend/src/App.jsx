@@ -42,7 +42,7 @@ function App() {
         }
 
         // Clean up legacy localStorage data, keeping only the token
-        const keysToKeep = ['token'];
+        const keysToKeep = ['token', 'predictionsActiveTab'];
         Object.keys(localStorage).forEach(key => {
           if (!keysToKeep.includes(key)) {
             localStorage.removeItem(key);
@@ -133,7 +133,7 @@ function App() {
           {currentView === 'dashboard' && <Dashboard navigateTo={navigateTo} />}
           {currentView === 'matches' && <Matches />}
           {currentView === 'predictions' && <Predictions userRole={userRole} navigateTo={navigateTo} />}
-          {currentView === 'bracket' && <BracketPredictor />}
+          {currentView === 'bracket' && <BracketPredictor navigateTo={navigateTo} userRole={userRole} />}
           {currentView === 'specials' && <Specials />}
           {currentView === 'leaderboard' && <Leaderboard />}
           {currentView === 'profile' && <Profile />}

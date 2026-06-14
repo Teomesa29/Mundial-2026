@@ -129,6 +129,10 @@ export default function Leaderboard() {
             <strong>+3</strong>
           </div>
           <div className="rule-item">
+            <span>Ganador de Penales (Fase Final)<br /><small style={{ color: 'var(--text-gray)' }}>Si predices empate y aciertas el clasificado</small></span>
+            <strong>+1</strong>
+          </div>
+          <div className="rule-item">
             <span>Fallo<br /><small style={{ color: 'var(--text-gray)' }}>Ej: Predices local, gana visita</small></span>
             <strong style={{ color: 'var(--red)' }}>0</strong>
           </div>

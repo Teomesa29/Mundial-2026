@@ -60,10 +60,60 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int) -> None:
         is_correct = (real_winner == pred_winner)
         
         points = 0
-        if is_exact:
-            points = p_exact
-        elif is_correct:
-            points = p_correct
+        
+        # Check if knockout stage
+        is_knockout = match_obj.stage != MatchStage.group
+        
+        if is_knockout:
+            real_is_draw = (home_score == away_score)
+            pred_is_draw = (pred_home == pred_away)
+            
+            # Find the actual winner including penalties
+            if real_is_draw and match_obj.home_score_penalties is not None and match_obj.away_score_penalties is not None:
+                real_winner_id = match_obj.home_team_id if match_obj.home_score_penalties > match_obj.away_score_penalties else match_obj.away_team_id
+            else:
+                real_winner_id = match_obj.home_team_id if home_score > away_score else match_obj.away_team_id
+            
+            # User's predicted winner
+            if pred_home > pred_away:
+                user_predicted_winner_id = match_obj.home_team_id
+            elif pred_away > pred_home:
+                user_predicted_winner_id = match_obj.away_team_id
+            else:
+                user_predicted_winner_id = pred.predicted_winner_id
+            
+            if real_is_draw:
+                if is_exact:
+                    # Exact draw predicted (5 points)
+                    points = 5
+                    # Plus, if they also guessed the penalties winner correctly (+1 point)
+                    if user_predicted_winner_id == real_winner_id:
+                        points += 1
+                else:
+                    if pred_is_draw:
+                        # Correct outcome (DRAW) -> 2 points (or config based)
+                        points = p_correct if p_correct > 1 else 2
+                        # Plus, if they guessed the penalties winner correctly -> 1 point
+                        if user_predicted_winner_id == real_winner_id:
+                            points += 1
+                    else:
+                        # Predicted a team to win, but it ended in a draw.
+                        # Did they guess the penalties winner correctly?
+                        if user_predicted_winner_id == real_winner_id:
+                            points = 1
+                        else:
+                            points = 0
+            else:
+                if is_exact:
+                    points = 5
+                elif is_correct:
+                    points = p_correct if p_correct > 1 else 2
+        else:
+            # Group stage - Standard calculation
+            if is_exact:
+                points = p_exact
+            elif is_correct:
+                points = p_correct
             
         old_points = pred.points_earned or 0
         delta = points - old_points
