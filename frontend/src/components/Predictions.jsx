@@ -146,14 +146,18 @@ export default function Predictions({ userRole, navigateTo }) {
             onClick={() => handleTabChange('list')}
           >
             <i className="ri-list-check" style={{ marginRight: '0.5rem' }}></i>
-            Partidos
+            Fase grupos
           </button>
           <button
             className={`filter-btn ${activeTab === 'forecast' ? 'active' : ''}`}
             onClick={() => handleTabChange('forecast')}
           >
             <i className="ri-table-line" style={{ marginRight: '0.5rem' }}></i>
-            Simulador Tablas
+            Tabla posiciones
+          </button>
+          <button className="filter-btn" onClick={() => navigateTo('bracket')}>
+            <i className="ri-organization-chart" style={{ marginRight: '0.5rem' }}></i>
+            Finalistas
           </button>
         </div>
       </div>
