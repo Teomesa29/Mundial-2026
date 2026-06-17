@@ -272,8 +272,9 @@ export default function Predictions({ userRole, navigateTo }) {
                   const priority = {
                     'Grupo A': 1, 'Grupo B': 2, 'Grupo C': 3, 'Grupo D': 4,
                     'Grupo E': 5, 'Grupo F': 6, 'Grupo G': 7, 'Grupo H': 8,
-                    'Dieciseisavos': 9, 'Octavos de Final': 10, 'Cuartos de Final': 11,
-                    'Semifinal': 12, 'Tercer Puesto': 13, 'Final': 14
+                    'Grupo I': 9, 'Grupo J': 10, 'Grupo K': 11, 'Grupo L': 12,
+                    'Dieciseisavos': 13, 'Octavos de Final': 14, 'Cuartos de Final': 15,
+                    'Semifinal': 16, 'Tercer Puesto': 17, 'Final': 18
                   };
                   return (priority[a[0]] || 99) - (priority[b[0]] || 99);
                 })
