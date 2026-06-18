@@ -15,18 +15,36 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
         # Leaderboard and last-5 streaks in two queries (NOT loading all predictions)
         lb_stmt = text("SELECT * FROM leaderboard ORDER BY posicion ASC")
         
-        # Only fetch last 5 scored predictions per user using a lateral subquery
+        # Only fetch last 5 scored predictions per user using a lateral subquery with match and team details
         streak_stmt = text("""
-            SELECT user_id, points_earned
+            SELECT 
+                ranked.user_id, 
+                ranked.points_earned,
+                ranked.predicted_home_score,
+                ranked.predicted_away_score,
+                ranked.is_correct_result,
+                ranked.is_exact_score,
+                ranked.home_score,
+                ranked.away_score,
+                t_home.name AS home_name,
+                t_home.country_code AS home_code,
+                t_home.logo_url AS home_logo,
+                t_away.name AS away_name,
+                t_away.country_code AS away_code,
+                t_away.logo_url AS away_logo
             FROM (
-                SELECT p.user_id, p.points_earned,
+                SELECT p.user_id, p.points_earned, p.predicted_home_score, p.predicted_away_score,
+                       p.is_correct_result, p.is_exact_score,
+                       m.home_score, m.away_score, m.home_team_id, m.away_team_id,
                        ROW_NUMBER() OVER (PARTITION BY p.user_id ORDER BY m.match_date DESC) AS rn
                 FROM match_predictions p
                 JOIN matches m ON p.match_id = m.id
                 WHERE p.points_earned IS NOT NULL
             ) ranked
-            WHERE rn <= 5
-            ORDER BY user_id, rn DESC
+            JOIN teams t_home ON ranked.home_team_id = t_home.id
+            JOIN teams t_away ON ranked.away_team_id = t_away.id
+            WHERE ranked.rn <= 5
+            ORDER BY ranked.user_id, ranked.rn DESC
         """)
 
         lb_result, streak_result = await db.execute(lb_stmt), None
@@ -37,14 +55,30 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
 
         streak_result = await db.execute(streak_stmt)
         user_streaks: dict = {}
-        for user_id, points in streak_result.all():
-            if points >= 5:
+        for row in streak_result.all():
+            points = row.points_earned
+            if row.is_exact_score:
                 status = "E" # Exact
-            elif points > 0:
+            elif row.is_correct_result:
                 status = "W" # Winner
             else:
                 status = "L" # Loss
-            user_streaks.setdefault(user_id, []).append(status)
+            
+            streak_item = {
+                "status": status,
+                "points": points,
+                "home_team": row.home_name,
+                "home_code": row.home_code,
+                "home_logo": row.home_logo,
+                "away_team": row.away_name,
+                "away_code": row.away_code,
+                "away_logo": row.away_logo,
+                "predicted_home_score": row.predicted_home_score,
+                "predicted_away_score": row.predicted_away_score,
+                "actual_home_score": row.home_score,
+                "actual_away_score": row.away_score,
+            }
+            user_streaks.setdefault(row.user_id, []).append(streak_item)
 
         return [
             {

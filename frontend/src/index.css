@@ -454,6 +454,263 @@ h1, h2, h3, h4, .display-text {
   text-align: right;
 }
 
+/* Tooltip for leaderboard streak dots */
+.dot-tooltip {
+  position: absolute;
+  bottom: 25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-dark);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  width: 170px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  border: 1px solid rgba(255,255,255,0.12);
+  text-align: left;
+}
+
+.dot-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--bg-dark) transparent transparent transparent;
+}
+
+.dot-tooltip.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-3px);
+  pointer-events: auto;
+}
+
+.dot-tooltip.tooltip-down {
+  bottom: auto;
+  top: 25px;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dot-tooltip.tooltip-down::after {
+  top: auto;
+  bottom: 100%;
+  border-color: transparent transparent var(--bg-dark) transparent;
+}
+
+.dot-tooltip.tooltip-down.visible {
+  transform: translateX(-50%) translateY(3px);
+}
+
+/* Alignment modifiers to prevent boundary overflow */
+.dot-tooltip.tooltip-left-align {
+  left: -10px;
+  transform: none;
+}
+.dot-tooltip.tooltip-left-align::after {
+  left: 20px;
+  transform: none;
+}
+.dot-tooltip.tooltip-left-align.visible {
+  transform: translateY(-3px);
+}
+.dot-tooltip.tooltip-left-align.tooltip-down.visible {
+  transform: translateY(3px);
+}
+
+.dot-tooltip.tooltip-right-align {
+  left: auto;
+  right: -10px;
+  transform: none;
+}
+.dot-tooltip.tooltip-right-align::after {
+  left: auto;
+  right: 20px;
+  transform: none;
+}
+.dot-tooltip.tooltip-right-align.visible {
+  transform: translateY(-3px);
+}
+.dot-tooltip.tooltip-right-align.tooltip-down.visible {
+  transform: translateY(3px);
+}
+
+.tooltip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding-bottom: 4px;
+}
+
+.tooltip-badge {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: normal;
+}
+
+.badge-e {
+  background: var(--green);
+  color: white;
+}
+
+.badge-w {
+  background: #FFC107;
+  color: var(--bg-dark);
+  font-weight: 700;
+}
+
+.badge-l {
+  background: var(--red);
+  color: white;
+}
+
+.tooltip-points {
+  font-weight: 700;
+  color: var(--gold-light);
+  font-size: 0.7rem;
+}
+
+.tooltip-match-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tooltip-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  margin-bottom: 3px;
+  color: white;
+}
+
+.tooltip-team-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tooltip-vs {
+  font-size: 0.65rem;
+  color: var(--text-gray);
+  align-self: center;
+  margin: -1px 0;
+}
+
+/* Beautiful Pred vs Real score comparison block layout */
+.tooltip-scores {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 6px 4px;
+  margin-top: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.score-label {
+  font-size: 0.55rem;
+  color: var(--text-gray);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.score-value {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: white;
+}
+
+.score-value.highlight {
+  color: white;
+}
+
+.score-divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.tooltip-flag {
+  width: 16px;
+  height: 11px;
+  border-radius: 1px;
+  object-fit: cover;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Prediction score and points dynamic colors based on status */
+.points-e {
+  color: var(--green-light) !important;
+}
+.points-w {
+  color: #FFC107 !important;
+}
+.points-l {
+  color: var(--red) !important;
+}
+
+.score-e {
+  color: var(--green-light) !important;
+}
+.score-w {
+  color: #FFC107 !important;
+}
+.score-l {
+  color: var(--red) !important;
+}
+
+/* Prevent tooltip clipping on desktop viewports */
+@media (min-width: 1025px) {
+  .table-container {
+    overflow: visible !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .dot-tooltip {
+    width: 150px;
+    padding: 6px 8px;
+    font-size: 0.7rem;
+  }
+  .dot-tooltip.tooltip-down {
+    top: 22px;
+  }
+}
+
+
 .rules-panel {
   background: var(--bg-dark);
   color: white;

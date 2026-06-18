@@ -1,12 +1,78 @@
 import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import LoadingScreen from './LoadingScreen';
+import { getTranslatedName } from '../utils/translations';
 
 export default function Leaderboard() {
   const [leaders, setLeaders] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTooltip, setActiveTooltip] = useState(null);
+
+  useEffect(() => {
+    const handleDocumentClick = () => {
+      setActiveTooltip(null);
+    };
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
+
+  const handleDotMouseEnter = (userId, index) => {
+    if (!activeTooltip || !activeTooltip.isClick) {
+      setActiveTooltip({ userId, index, isClick: false });
+    }
+  };
+
+  const handleDotMouseLeave = () => {
+    if (activeTooltip && !activeTooltip.isClick) {
+      setActiveTooltip(null);
+    }
+  };
+
+  const handleDotClick = (e, userId, index) => {
+    e.stopPropagation();
+    if (activeTooltip && activeTooltip.userId === userId && activeTooltip.index === index && activeTooltip.isClick) {
+      setActiveTooltip(null);
+    } else {
+      setActiveTooltip({ userId, index, isClick: true });
+    }
+  };
+
+  const renderFlag = (logoUrl, countryCode, teamName) => {
+    return (
+      <img 
+        src={logoUrl || (countryCode ? `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png` : 'https://flagcdn.com/w40/un.png')} 
+        alt={teamName}
+        className="tooltip-flag"
+        onError={(e) => { e.target.src = 'https://flagcdn.com/w40/un.png'; }}
+      />
+    );
+  };
+
+  const getStreakDetail = (s) => {
+    if (typeof s === 'object' && s !== null) {
+      return s;
+    }
+    const status = s || 'L';
+    const points = status === 'E' ? 5 : status === 'W' ? 3 : 0;
+    return {
+      status,
+      points,
+      home_team: 'Partido',
+      home_code: '',
+      home_logo: '',
+      away_team: 'Finalizado',
+      away_code: '',
+      away_logo: '',
+      predicted_home_score: '?',
+      predicted_away_score: '?',
+      actual_home_score: '?',
+      actual_away_score: '?'
+    };
+  };
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -79,7 +145,10 @@ export default function Leaderboard() {
               <tbody>
                 {leaders.length > 0 ? (
                   leaders.map((entry) => (
-                    <tr key={entry.user_id}>
+                    <tr 
+                      key={entry.user_id}
+                      style={activeTooltip && activeTooltip.userId === entry.user_id ? { position: 'relative', zIndex: 10 } : {}}
+                    >
                       <td className="rank">{entry.position}</td>
                       <td>
                         <div className="user-cell">
@@ -89,16 +158,63 @@ export default function Leaderboard() {
                           {entry.user.display_name}
                         </div>
                       </td>
-                      <td>
-                        <div className="streak">
-                          {entry.streak && entry.streak.length > 0 ? (
-                            entry.streak.map((s, i) => (
-                              <div 
-                                key={i} 
-                                className={`dot streak-${s.toLowerCase()}`} 
-                                title={s === 'E' ? 'Exacto (+5 pts)' : s === 'W' ? 'Acierto (+3 pts)' : 'Fallo (0 pts)'}
-                              ></div>
-                            ))
+                      <td style={activeTooltip && activeTooltip.userId === entry.user_id ? { position: 'relative', zIndex: 15 } : {}}>
+                        <div className="streak">                           {entry.streak && entry.streak.length > 0 ? (
+                            entry.streak.map((s, i) => {
+                              const detail = getStreakDetail(s);
+                              const isVisible = activeTooltip && 
+                                activeTooltip.userId === entry.user_id && 
+                                activeTooltip.index === i;
+                              const isDown = entry.position <= 2;
+                              const alignClass = i === 0 ? 'tooltip-left-align' : (i >= 3 ? 'tooltip-right-align' : '');
+                              return (
+                                <div 
+                                  key={i} 
+                                  className={`dot streak-${detail.status.toLowerCase()}`}
+                                  onClick={(e) => handleDotClick(e, entry.user_id, i)}
+                                  onMouseEnter={() => handleDotMouseEnter(entry.user_id, i)}
+                                  onMouseLeave={handleDotMouseLeave}
+                                  style={{ position: 'relative', cursor: 'pointer', zIndex: isVisible ? 20 : 1 }}
+                                >
+                                  <div className={`dot-tooltip ${isVisible ? 'visible' : ''} ${isDown ? 'tooltip-down' : ''} ${alignClass}`}>
+                                    <div className="tooltip-header">
+                                      <span className={`tooltip-badge badge-${detail.status.toLowerCase()}`}>
+                                        {detail.status === 'E' ? 'Exacto' : detail.status === 'W' ? 'Acierto' : 'Fallo'}
+                                      </span>
+                                      <span className={`tooltip-points points-${detail.status.toLowerCase()}`}>
+                                        {detail.points > 0 ? `+${detail.points}` : detail.points} pts
+                                      </span>
+                                    </div>
+                                    <div className="tooltip-match-info">
+                                      <div className="tooltip-teams">
+                                        <div className="tooltip-team-row">
+                                          {renderFlag(detail.home_logo, detail.home_code, detail.home_team)}
+                                          <span>{getTranslatedName(detail.home_team)}</span>
+                                        </div>
+                                        <span className="tooltip-vs">vs</span>
+                                        <div className="tooltip-team-row">
+                                          {renderFlag(detail.away_logo, detail.away_code, detail.away_team)}
+                                          <span>{getTranslatedName(detail.away_team)}</span>
+                                        </div>
+                                      </div>
+                                      <div className="tooltip-scores">
+                                        <div className="score-block">
+                                          <span className="score-label">PRED</span>
+                                          <span className={`score-value score-${detail.status.toLowerCase()}`}>
+                                            {detail.predicted_home_score} - {detail.predicted_away_score}
+                                          </span>
+                                        </div>
+                                        <div className="score-divider"></div>
+                                        <div className="score-block">
+                                          <span className="score-label">REAL</span>
+                                          <span className="score-value highlight">{detail.actual_home_score} - {detail.actual_away_score}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
                           ) : (
                             <span style={{color: 'var(--text-gray)', fontSize: '0.8rem'}}>Sin predicciones</span>
                           )}
