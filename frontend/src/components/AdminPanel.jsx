@@ -363,7 +363,13 @@ export default function AdminPanel() {
                   <tr key={u.id}>
                     <td>
                       <div className="user-cell">
-                        <div className="u-avatar" style={{width: '32px', height: '32px'}}>{u.display_name?.substring(0,2).toUpperCase()}</div>
+                        <div className="u-avatar" style={{width: '32px', height: '32px', overflow: 'hidden', padding: 0}}>
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} alt={u.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                          ) : (
+                            u.display_name?.substring(0,2).toUpperCase()
+                          )}
+                        </div>
                         {u.display_name}
                       </div>
                     </td>

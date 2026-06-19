@@ -153,8 +153,8 @@ class MatchPrediction(Base):
     __tablename__ = "match_predictions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="RESTRICT"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="RESTRICT"), nullable=False, index=True)
     predicted_home_score: Mapped[int] = mapped_column(nullable=False)
     predicted_away_score: Mapped[int] = mapped_column(nullable=False)
     predicted_winner_id: Mapped[Optional[int]] = mapped_column(ForeignKey("teams.id", ondelete="RESTRICT"))

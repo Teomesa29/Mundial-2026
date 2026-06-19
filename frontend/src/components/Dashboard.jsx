@@ -199,7 +199,13 @@ export default function Dashboard({ navigateTo }) {
                 {topLeaders[1] && (
                   <div className="podium-col second tilt-card" ref={addToRefs}>
                     <div className="podium-card">
-                      <div className="p-avatar">{(topLeaders[1].display_name || '??').substring(0, 2).toUpperCase()}</div>
+                      <div className="p-avatar" style={topLeaders[1].user?.avatar_url ? { overflow: 'hidden', padding: 0 } : {}}>
+                        {topLeaders[1].user?.avatar_url ? (
+                          <img src={topLeaders[1].user.avatar_url} alt={topLeaders[1].display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          (topLeaders[1].display_name || '??').substring(0, 2).toUpperCase()
+                        )}
+                      </div>
                       <div className="p-name">{topLeaders[1].display_name || 'Usuario'}</div>
                       <div className="p-pts">{topLeaders[1].total_points || 0} pts</div>
                     </div>
@@ -210,8 +216,12 @@ export default function Dashboard({ navigateTo }) {
                 {topLeaders[0] && (
                   <div className="podium-col first tilt-card" ref={addToRefs}>
                     <div className="podium-card">
-                      <div className="p-avatar">
-                        {(topLeaders[0].display_name || '??').substring(0, 2).toUpperCase()}
+                      <div className="p-avatar" style={topLeaders[0].user?.avatar_url ? { overflow: 'hidden', padding: 0 } : {}}>
+                        {topLeaders[0].user?.avatar_url ? (
+                          <img src={topLeaders[0].user.avatar_url} alt={topLeaders[0].display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          (topLeaders[0].display_name || '??').substring(0, 2).toUpperCase()
+                        )}
                       </div>
                       <div className="p-name">{topLeaders[0].display_name || 'Usuario'}</div>
                       <div className="p-pts">{topLeaders[0].total_points || 0} pts</div>
@@ -223,7 +233,13 @@ export default function Dashboard({ navigateTo }) {
                 {topLeaders[2] && (
                   <div className="podium-col third tilt-card" ref={addToRefs}>
                     <div className="podium-card">
-                      <div className="p-avatar">{(topLeaders[2].display_name || '??').substring(0, 2).toUpperCase()}</div>
+                      <div className="p-avatar" style={topLeaders[2].user?.avatar_url ? { overflow: 'hidden', padding: 0 } : {}}>
+                        {topLeaders[2].user?.avatar_url ? (
+                          <img src={topLeaders[2].user.avatar_url} alt={topLeaders[2].display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          (topLeaders[2].display_name || '??').substring(0, 2).toUpperCase()
+                        )}
+                      </div>
                       <div className="p-name">{topLeaders[2].display_name || 'Usuario'}</div>
                       <div className="p-pts">{topLeaders[2].total_points || 0} pts</div>
                     </div>

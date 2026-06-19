@@ -160,6 +160,35 @@ async def get_my_predictions(db: AsyncSession = Depends(get_db), current_user: U
                 p.match.group_name = str(p.match.stage.value) if hasattr(p.match.stage, 'value') else str(p.match.stage)
     return preds
 
+@router.get("/user/{user_id}", response_model=List[MatchPredictionResponse])
+async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify user exists
+    user_exists = (await db.execute(select(User.id).where(User.id == user_id))).scalar_one_or_none()
+    if not user_exists:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    from sqlalchemy.orm import joinedload
+    result = await db.execute(
+        select(MatchPrediction)
+        .options(
+            joinedload(MatchPrediction.match).joinedload(Match.home_team), 
+            joinedload(MatchPrediction.match).joinedload(Match.away_team),
+            joinedload(MatchPrediction.match).joinedload(Match.group),
+            joinedload(MatchPrediction.match).joinedload(Match.stadium)
+        )
+        .where(MatchPrediction.user_id == user_id)
+    )
+    preds = result.scalars().unique().all()
+    # Ensure group_name is set for each match in predictions
+    for p in preds:
+        if p.match:
+            if p.match.group:
+                p.match.group_name = f"Grupo {p.match.group.name}"
+            else:
+                p.match.group_name = str(p.match.stage.value) if hasattr(p.match.stage, 'value') else str(p.match.stage)
+    return preds
+
+
 @router.post("/", response_model=MatchPredictionResponse)
 async def create_prediction(pred: MatchPredictionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from datetime import timezone
@@ -272,6 +301,88 @@ async def get_my_bracket(db: AsyncSession = Depends(get_db), current_user: User 
         )
     return bracket
 
+async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_data: dict):
+    from app.models.enums import MatchStage
+    from datetime import timezone
+    
+    # 1. Fetch all knockout matches
+    result = await db.execute(
+        select(Match)
+        .where(Match.stage != MatchStage.group)
+        .order_by(Match.match_number, Match.id)
+    )
+    knockout_matches = result.scalars().all()
+    
+    # 2. Group by stage
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for m in knockout_matches:
+        grouped[m.stage].append(m)
+        
+    # 3. Define STAGE_TO_BRACKET_IDS
+    STAGE_TO_BRACKET_IDS = {
+        MatchStage.round_of_32: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        MatchStage.round_of_16: [17, 18, 19, 20, 21, 22, 23, 24],
+        MatchStage.quarterfinal: [25, 26, 27, 28],
+        MatchStage.semifinal: [29, 30],
+        MatchStage.final: [31],
+        MatchStage.third_place: [32]
+    }
+    
+    # Map bracket_id to match_id
+    bracket_to_match_id = {}
+    for stage, ids in STAGE_TO_BRACKET_IDS.items():
+        stage_matches = grouped.get(stage, [])
+        sorted_matches = sorted(stage_matches, key=lambda m: (m.match_number or 0, m.id))
+        for idx, match in enumerate(sorted_matches):
+            if idx < len(ids):
+                bracket_to_match_id[ids[idx]] = match.id
+                
+    # 4. Upsert MatchPrediction entries
+    for bracket_id_str, pred_info in bracket_data.items():
+        try:
+            bracket_id = int(bracket_id_str)
+        except ValueError:
+            continue
+            
+        match_id = bracket_to_match_id.get(bracket_id)
+        if not match_id:
+            continue
+            
+        pred_home = pred_info.get("predicted_home")
+        pred_away = pred_info.get("predicted_away")
+        pred_winner_id = pred_info.get("predicted_winner_id")
+        
+        if pred_home is None or pred_home == "" or pred_away is None or pred_away == "":
+            continue
+            
+        try:
+            pred_home = int(pred_home)
+            pred_away = int(pred_away)
+        except ValueError:
+            continue
+            
+        pred_q = select(MatchPrediction).where(
+            MatchPrediction.user_id == user_id,
+            MatchPrediction.match_id == match_id
+        )
+        existing_pred = (await db.execute(pred_q)).scalar_one_or_none()
+        
+        if existing_pred:
+            existing_pred.predicted_home_score = pred_home
+            existing_pred.predicted_away_score = pred_away
+            existing_pred.predicted_winner_id = pred_winner_id
+            existing_pred.updated_at = datetime.now(timezone.utc)
+        else:
+            new_pred = MatchPrediction(
+                user_id=user_id,
+                match_id=match_id,
+                predicted_home_score=pred_home,
+                predicted_away_score=pred_away,
+                predicted_winner_id=pred_winner_id
+            )
+            db.add(new_pred)
+
 @router.post("/bracket", response_model=UserBracketResponse)
 async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Check global config for locking
@@ -295,6 +406,9 @@ async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = D
         db.add(bracket)
     else:
         bracket.bracket_data = bracket_req.bracket_data
+    
+    # Sincronizar las predicciones del bracket a la tabla MatchPrediction
+    await sync_bracket_to_predictions(db, current_user.id, bracket_req.bracket_data)
     
     await db.commit()
     await db.refresh(bracket)

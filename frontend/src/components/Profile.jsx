@@ -31,7 +31,13 @@ export default function Profile() {
   return (
     <div className="view" style={{animation: 'fadeIn 0.4s ease-out forwards'}}>
       <div className="profile-header tilt-card">
-        <div className="profile-avatar">{user?.display_name?.substring(0, 2).toUpperCase()}</div>
+        <div className="profile-avatar" style={user?.avatar_url ? { overflow: 'hidden', padding: 0 } : {}}>
+          {user?.avatar_url ? (
+            <img src={user.avatar_url} alt={user.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            user?.display_name?.substring(0, 2).toUpperCase()
+          )}
+        </div>
         <div className="profile-main-info">
           <h1 className="profile-name">{user?.display_name}</h1>
           <p className="profile-email">{user?.email}</p>
@@ -53,7 +59,7 @@ export default function Profile() {
         <div className="predictions-history">
           {predictions.length > 0 ? (
             predictions.map(pred => (
-              <div key={pred.id} className={`history-card ${pred.points_earned > 0 ? 'correct' : pred.match?.status === 'finished' ? 'incorrect' : 'pending'}`}>
+              <div key={pred.id} className={`history-card ${pred.points_earned > 0 ? 'correct' : pred.match?.status?.toLowerCase() === 'finished' ? 'incorrect' : 'pending'}`}>
                 <div className="history-match-info">
                   <span className="match-stage">{getTranslatedStage(pred.match?.stage, pred.match?.group_name)}</span>
                   <div className="match-teams-row">
@@ -68,7 +74,7 @@ export default function Profile() {
                     <span className="h-label">Tu Predicción</span>
                     <span className="h-val">{pred.predicted_home_score} - {pred.predicted_away_score}</span>
                   </div>
-                  {pred.match?.status === 'finished' && (
+                  {pred.match?.status?.toLowerCase() === 'finished' && (
                     <div className="h-pred-block">
                       <span className="h-label">Resultado Real</span>
                       <span className="h-val">{pred.match?.home_score} - {pred.match?.away_score}</span>
@@ -77,7 +83,7 @@ export default function Profile() {
                 </div>
 
                 <div className="history-result">
-                  {pred.match?.status === 'finished' ? (
+                  {pred.match?.status?.toLowerCase() === 'finished' ? (
                     <div className="points-badge">
                       <span className="pts">{pred.points_earned > 0 ? `+${pred.points_earned}` : '-0'}</span>
                       <span className="pts-label">Puntos</span>

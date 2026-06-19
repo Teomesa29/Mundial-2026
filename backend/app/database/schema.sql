@@ -243,8 +243,6 @@ CREATE INDEX idx_points_hist_user ON points_history(user_id);
 CREATE INDEX idx_activity_log_user ON activity_log(user_id);
 CREATE INDEX idx_activity_log_date ON activity_log(created_at);
 
--- MATERIALIZED VIEW: LEADERBOARD
--- Optimizada para lecturas ultra-rápidas en el frontend
 CREATE MATERIALIZED VIEW leaderboard AS
 SELECT 
     DENSE_RANK() OVER (ORDER BY u.total_points DESC, (

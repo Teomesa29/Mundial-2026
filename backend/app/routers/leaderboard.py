@@ -10,6 +10,19 @@ router = APIRouter()
 
 @router.get("/")
 async def get_leaderboard(db: AsyncSession = Depends(get_db)):
+    # Obtener estadísticas globales de partidos para calcular progreso y fallos
+    try:
+        total_matches = 104
+        
+        finished_res = await db.execute(text("SELECT COUNT(*) FROM matches WHERE status = 'finished'"))
+        finished_matches = finished_res.scalar() or 0
+    except Exception as e:
+        import logging
+        logger = logging.getLogger("uvicorn.error")
+        logger.error(f"Error fetching match counts: {e}")
+        total_matches = 104
+        finished_matches = 0
+
     # Intentar obtener datos de la vista materializada
     try:
         # Leaderboard and last-5 streaks in two queries (NOT loading all predictions)
@@ -91,6 +104,10 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
                 "correct_count": row.acertados,
                 "special_correct": row.especiales,
                 "streak": user_streaks.get(row.user_id, []),
+                # Estadísticas dinámicas de partidos
+                "matches_played": finished_matches,
+                "matches_total": total_matches,
+                "failed_count": max(0, finished_matches - row.acertados),
             }
             for row in rows
         ]
@@ -113,6 +130,10 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
                 "correct_count": 0,
                 "special_correct": 0,
                 "streak": [],
+                # Estadísticas dinámicas de partidos fallback
+                "matches_played": finished_matches,
+                "matches_total": total_matches,
+                "failed_count": finished_matches,
             }
             for i, u in enumerate(users)
         ]

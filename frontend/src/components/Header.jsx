@@ -31,7 +31,13 @@ export default function Header({ isAdminMode, toggleAdminMode, userRole, navigat
           <span className="user-name">{user.display_name}</span>
           <span className="user-pts">{user.total_points} pts (Pos. {user.position !== undefined && user.position !== '?' ? user.position : '-'})</span>
         </div>
-        <div className="avatar">{user.display_name?.substring(0, 2).toUpperCase()}</div>
+        <div className="avatar" style={user.avatar_url ? { overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } : {}}>
+          {user.avatar_url ? (
+            <img src={user.avatar_url} alt={user.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+          ) : (
+            user.display_name?.substring(0, 2).toUpperCase()
+          )}
+        </div>
         
         <div className="user-dropdown" onClick={(e) => e.stopPropagation()}>
           <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); navigateTo('profile'); }}><i className="ri-user-settings-line"></i> Mi Perfil</button>
