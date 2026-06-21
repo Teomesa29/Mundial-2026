@@ -305,7 +305,7 @@ async def sync_stadiums(db: AsyncSession) -> SyncResult:
     await db.commit()
     return result
 
-async def _get_or_create_stadium(db: AsyncSession, venue_name: str, match_number: int = None) -> Stadium:
+async def _get_or_create_stadium(db: AsyncSession, venue_name: str, match_number: int = None, stadiums_dict: Dict = None) -> Stadium:
     """Helper to get or create stadium with mapping fallback"""
     # 1. Intentar resolver por número de partido si no hay venue o es genérico
     if (not venue_name or "definir" in venue_name.lower() or venue_name == "Unknown Venue") and match_number in MATCH_STADIUM_MAPPING:
@@ -315,11 +315,17 @@ async def _get_or_create_stadium(db: AsyncSession, venue_name: str, match_number
     if not venue_name:
         venue_name = "Estadio por definir"
 
+    # Use in-memory dict lookup if available
+    if stadiums_dict is not None and venue_name in stadiums_dict:
+        return stadiums_dict[venue_name]
+
     # 2. Buscar en BD
     result = await db.execute(select(Stadium).where(Stadium.name == venue_name))
     stadium = result.scalar_one_or_none()
     
     if stadium:
+        if stadiums_dict is not None:
+            stadiums_dict[venue_name] = stadium
         return stadium
     
     # 3. Si no existe, ver si está en nuestra lista oficial
@@ -333,6 +339,8 @@ async def _get_or_create_stadium(db: AsyncSession, venue_name: str, match_number
     )
     db.add(new_stadium)
     await db.flush()
+    if stadiums_dict is not None:
+        stadiums_dict[venue_name] = new_stadium
     return new_stadium
 
 async def sync_matches(db: AsyncSession) -> SyncResult:
@@ -368,6 +376,19 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
         # This allows us to map venues manually using MATCH_STADIUM_MAPPING
         api_matches = sorted(data['matches'], key=lambda x: (x.get('utcDate', ''), x.get('id', 0)))
             
+        # Bulk query existing matches, teams, groups, and stadiums to reduce individual SELECT commands
+        db_res = await db.execute(select(Match))
+        db_matches = {m.external_match_id: m for m in db_res.scalars().all()}
+        
+        teams_res = await db.execute(select(Team))
+        teams_dict = {t.external_id: t for t in teams_res.scalars().all()}
+        
+        groups_res = await db.execute(select(Group))
+        groups_dict = {g.name: g for g in groups_res.scalars().all()}
+        
+        stadiums_res = await db.execute(select(Stadium))
+        stadiums_dict = {s.name: s for s in stadiums_res.scalars().all()}
+
         for i, match_data in enumerate(api_matches, 1):
             tournament_match_number = i # Unique match number in tournament (1-104)
             ext_id = match_data['id']
@@ -392,9 +413,8 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
             home_score = match_data.get('score', {}).get('fullTime', {}).get('home')
             away_score = match_data.get('score', {}).get('fullTime', {}).get('away')
             
-            q = select(Match).where(Match.external_match_id == ext_id)
-            db_res = await db.execute(q)
-            db_match = db_res.scalar_one_or_none()
+            # Look up match in-memory
+            db_match = db_matches.get(ext_id)
             
             if db_match:
                 is_db_finished = (db_match.status == MatchStatus.finished or db_match.status == "finished")
@@ -404,14 +424,15 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                 venue_name = match_data.get('venue')
                 stadium_updated = False
                 
-                new_stadium = await _get_or_create_stadium(db, venue_name, match_number=tournament_match_number)
+                new_stadium = await _get_or_create_stadium(db, venue_name, match_number=tournament_match_number, stadiums_dict=stadiums_dict)
                 if db_match.stadium_id != new_stadium.id:
                     db_match.stadium_id = new_stadium.id
                     stadium_updated = True
 
-                # Prevent API from downgrading a match that was already marked as finished
-                # (e.g. by an admin manual override)
-                if is_db_finished and not is_api_finished:
+                # If the match is already marked as finished in our database, do not let the API
+                # overwrite its scores or status. This preserves manual admin overrides and also
+                # prevents downgrades.
+                if is_db_finished:
                     if stadium_updated:
                         await db.commit()
                         result.updated += 1
@@ -455,16 +476,16 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                 if not home_ext_id or not away_ext_id:
                     continue
                     
-                # Get teams
-                home_team = (await db.execute(select(Team).where(Team.external_id == home_ext_id))).scalar_one_or_none()
-                away_team = (await db.execute(select(Team).where(Team.external_id == away_ext_id))).scalar_one_or_none()
+                # Get teams in-memory
+                home_team = teams_dict.get(home_ext_id)
+                away_team = teams_dict.get(away_ext_id)
                 
                 if not home_team or not away_team:
                     continue
                 
                 # Get or create stadium
                 venue_name = match_data.get('venue')
-                stadium = await _get_or_create_stadium(db, venue_name, match_number=tournament_match_number)
+                stadium = await _get_or_create_stadium(db, venue_name, match_number=tournament_match_number, stadiums_dict=stadiums_dict)
                 
                 # Get group if applicable
                 group_id = None
@@ -472,7 +493,7 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                 if group_name_full:
                     group_letter = group_name_full.split(' ')[-1]
                     if len(group_letter) > 1: group_letter = group_letter[0]
-                    group_obj = (await db.execute(select(Group).where(Group.name == group_letter))).scalar_one_or_none()
+                    group_obj = groups_dict.get(group_letter)
                     if group_obj:
                         group_id = group_obj.id
 
@@ -499,6 +520,8 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                     away_score=init_away_score
                 )
                 db.add(new_match)
+                await db.flush() # Flush to get id for local dictionaries
+                db_matches[ext_id] = new_match
                 result.created += 1
                 
         await db.commit()
@@ -529,6 +552,13 @@ async def sync_teams_and_groups(db: AsyncSession) -> SyncResult:
             logger.warning("No standings data received from API")
             return result
             
+        # Prefetch all groups and teams in single queries
+        groups_res = await db.execute(select(Group))
+        groups_dict = {g.name: g for g in groups_res.scalars().all()}
+        
+        teams_res = await db.execute(select(Team))
+        teams_dict = {t.external_id: t for t in teams_res.scalars().all()}
+
         for standing in data['standings']:
             if standing.get('type') != 'TOTAL':
                 continue
@@ -540,23 +570,22 @@ async def sync_teams_and_groups(db: AsyncSession) -> SyncResult:
             group_letter = group_name_full.split(' ')[-1]
             if len(group_letter) > 1: group_letter = group_letter[0]
 
-            q_group = select(Group).where(Group.name == group_letter)
-            res_group = await db.execute(q_group)
-            group_obj = res_group.scalar_one_or_none()
+            # Look up group in-memory
+            group_obj = groups_dict.get(group_letter)
             
             if not group_obj:
                 group_obj = Group(name=group_letter)
                 db.add(group_obj)
                 await db.flush()
+                groups_dict[group_letter] = group_obj
             
             for entry in standing.get('table', []):
                 team_data = entry.get('team', {})
                 ext_id = team_data.get('id')
                 if not ext_id: continue
                     
-                q_team = select(Team).where(Team.external_id == ext_id)
-                res_team = await db.execute(q_team)
-                db_team = res_team.scalar_one_or_none()
+                # Look up team in-memory
+                db_team = teams_dict.get(ext_id)
                 
                 area_name = team_data.get('area', {}).get('name', 'Europe')
                 confed = AREA_MAPPING.get(area_name, ConfederationType.UEFA)
@@ -591,6 +620,8 @@ async def sync_teams_and_groups(db: AsyncSession) -> SyncResult:
                         puntos_fase_grupos=entry.get('points', 0)
                     )
                     db.add(db_team)
+                    await db.flush()
+                    teams_dict[ext_id] = db_team
                     result.created += 1
 
         await db.commit()
@@ -648,6 +679,10 @@ async def sync_players(db: AsyncSession) -> SyncResult:
     teams_q = select(Team).where(Team.external_id.is_not(None))
     teams = (await db.execute(teams_q)).scalars().all()
     
+    # Prefetch all players of all teams in a single database query to avoid 1200+ queries
+    players_res = await db.execute(select(Player))
+    players_dict = {(p.name, p.team_id): p for p in players_res.scalars().all()}
+    
     for team in teams:
         try:
             logger.info(f"Sincronizando jugadores de {team.name}...")
@@ -658,9 +693,9 @@ async def sync_players(db: AsyncSession) -> SyncResult:
                 continue
                 
             for p_data in squad_data["squad"]:
-                # p_data: {id, name, position, dateOfBirth, nationality, shirtNumber}
-                p_q = select(Player).where(Player.name == p_data["name"], Player.team_id == team.id)
-                player = (await db.execute(p_q)).scalar_one_or_none()
+                # Look up player in-memory
+                player_key = (p_data["name"], team.id)
+                player = players_dict.get(player_key)
                 
                 pos_map = {
                     "Goalkeeper": PlayerPosition.goalkeeper,
@@ -687,6 +722,7 @@ async def sync_players(db: AsyncSession) -> SyncResult:
                     )
                     db.add(player)
                     await db.flush() # Para obtener el ID del jugador recién creado
+                    players_dict[player_key] = player
                     
                     # Inicializar estadísticas del torneo para el jugador
                     stats = PlayerTournamentStats(player_id=player.id)
@@ -713,17 +749,32 @@ async def sync_scorers(db: AsyncSession) -> SyncResult:
         if not scorers_data or "scorers" not in scorers_data:
             return result
             
+        # Collect all scorer names from API response
+        scorer_names = [s_data["player"]["name"] for s_data in scorers_data["scorers"] if s_data.get("player", {}).get("name")]
+        
+        if not scorer_names:
+            return result
+            
+        # Bulk query players by name
+        players_res = await db.execute(select(Player).where(Player.name.in_(scorer_names)))
+        players_dict = {p.name: p for p in players_res.scalars().all()}
+        
+        # Bulk query stats for these players
+        player_ids = [p.id for p in players_dict.values()]
+        stats_dict = {}
+        if player_ids:
+            stats_res = await db.execute(select(PlayerTournamentStats).where(PlayerTournamentStats.player_id.in_(player_ids)))
+            stats_dict = {s.player_id: s for s in stats_res.scalars().all()}
+            
         for s_data in scorers_data["scorers"]:
-            # s_data: {player: {id, name}, team: {id, name}, goals: X, assists: Y}
             player_name = s_data["player"]["name"]
             
-            # Buscar al jugador en nuestra DB
-            p_q = select(Player).where(Player.name == player_name)
-            player = (await db.execute(p_q)).scalar_one_or_none()
+            # Look up player in-memory
+            player = players_dict.get(player_name)
             
             if player:
-                stats_q = select(PlayerTournamentStats).where(PlayerTournamentStats.player_id == player.id)
-                stats = (await db.execute(stats_q)).scalar_one_or_none()
+                # Look up stats in-memory
+                stats = stats_dict.get(player.id)
                 
                 if stats:
                     stats.goals = s_data.get("goals", 0)

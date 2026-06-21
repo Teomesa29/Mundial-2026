@@ -348,46 +348,48 @@ export default function AdminPanel() {
       {activeTab === 'users' && (
         <div className="tab-content" style={{animation: 'slideUp 0.3s ease-out'}}>
           <div className="admin-card">
-            <div style={{display: 'flex', justifyBetween: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
               <h3 className="section-title">Gestión de Participantes</h3>
               <button className="action-btn primary" onClick={() => setShowCreateModal(true)}>
                 <i className="ri-user-add-line"></i> Nuevo Usuario
               </button>
             </div>
-            <table className="lb-table">
-              <thead>
-                <tr><th>Participante</th><th>Email</th><th>Rol</th><th>Acciones</th></tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td>
-                      <div className="user-cell">
-                        <div className="u-avatar" style={{width: '32px', height: '32px', overflow: 'hidden', padding: 0}}>
-                          {u.avatar_url ? (
-                            <img src={u.avatar_url} alt={u.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                          ) : (
-                            u.display_name?.substring(0,2).toUpperCase()
-                          )}
+            <div className="admin-table-wrapper">
+              <table className="lb-table">
+                <thead>
+                  <tr><th>Participante</th><th>Email</th><th>Rol</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                  {users.map(u => (
+                    <tr key={u.id}>
+                      <td>
+                        <div className="user-cell">
+                          <div className="u-avatar" style={{width: '32px', height: '32px', overflow: 'hidden', padding: 0}}>
+                            {u.avatar_url ? (
+                              <img src={u.avatar_url} alt={u.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                            ) : (
+                              u.display_name?.substring(0,2).toUpperCase()
+                            )}
+                          </div>
+                          {u.display_name}
                         </div>
-                        {u.display_name}
-                      </div>
-                    </td>
-                    <td style={{fontSize: '0.85rem', color: '#666'}}>{u.email}</td>
-                    <td><span className={`badge-urgency ${u.role === 'admin' ? 'live' : ''}`}>{u.role}</span></td>
-                    <td>
-                       <button 
-                         className="action-btn danger" 
-                         disabled={deletingUserId === u.id}
-                         onClick={() => handleDeleteUser(u.id)}
-                       >
-                          {deletingUserId === u.id ? <i className="ri-loader-4-line ri-spin"></i> : <i className="ri-delete-bin-line"></i>}
-                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td style={{fontSize: '0.85rem', color: '#666'}}>{u.email}</td>
+                      <td><span className={`badge-urgency ${u.role === 'admin' ? 'live' : ''}`}>{u.role}</span></td>
+                      <td>
+                         <button 
+                           className="action-btn danger" 
+                           disabled={deletingUserId === u.id}
+                           onClick={() => handleDeleteUser(u.id)}
+                         >
+                            {deletingUserId === u.id ? <i className="ri-loader-4-line ri-spin"></i> : <i className="ri-delete-bin-line"></i>}
+                         </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -418,48 +420,50 @@ export default function AdminPanel() {
                     marginBottom: '1rem',
                     borderLeft: '4px solid var(--gold)'
                   }}>{group}</h4>
-                  <table className="lb-table" style={{marginBottom: '1rem'}}>
-                    <thead>
-                      <tr><th>Fecha</th><th>Encuentro</th><th>Estado</th><th>Resultado</th><th>Acción</th></tr>
-                    </thead>
-                    <tbody>
-                      {[...groupMatches]
-                        .sort((a, b) => {
-                          const dateA = new Date(a.match_date || a.utc_date).getTime();
-                          const dateB = new Date(b.match_date || b.utc_date).getTime();
-                          return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
-                        })
-                        .map(m => (
-                        <tr key={m.id}>
-                          <td style={{fontSize: '0.75rem', color: '#666'}}>
-                            {new Date(m.match_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td style={{fontSize: '0.85rem'}}>
-                            <div style={{display: 'flex', alignItems: 'center', gap: '0.6rem'}}>
-                              <img src={getFlagUrl(m.home_team)} style={{width: '24px', height: '16px', objectFit: 'cover', borderRadius: '2px', border: '1px solid #eee'}} />
-                              <span style={{fontWeight: 700}}>{getTranslatedName(m.home_team?.name)}</span>
-                              <span style={{color: '#999'}}>vs</span>
-                              <span style={{fontWeight: 700}}>{getTranslatedName(m.away_team?.name)}</span>
-                              <img src={getFlagUrl(m.away_team)} style={{width: '24px', height: '16px', objectFit: 'cover', borderRadius: '2px', border: '1px solid #eee'}} />
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`status-tag ${m.status}`} style={{fontSize: '0.7rem', padding: '2px 8px'}}>
-                              {translateStatus(m.status)}
-                            </span>
-                          </td>
-                          <td style={{fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--bg-dark)'}}>
-                            {m.home_score} - {m.away_score}
-                          </td>
-                          <td>
-                            <button className="action-btn" onClick={() => openMatchEdit(m)} style={{padding: '5px 12px', fontSize: '0.8rem'}}>
-                              <i className="ri-edit-line"></i> Editar
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="admin-table-wrapper">
+                    <table className="lb-table" style={{marginBottom: '1rem'}}>
+                      <thead>
+                        <tr><th>Fecha</th><th>Encuentro</th><th>Estado</th><th>Resultado</th><th>Acción</th></tr>
+                      </thead>
+                      <tbody>
+                        {[...groupMatches]
+                          .sort((a, b) => {
+                            const dateA = new Date(a.match_date || a.utc_date).getTime();
+                            const dateB = new Date(b.match_date || b.utc_date).getTime();
+                            return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
+                          })
+                          .map(m => (
+                          <tr key={m.id}>
+                            <td style={{fontSize: '0.75rem', color: '#666'}}>
+                              {new Date(m.match_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td style={{fontSize: '0.85rem'}}>
+                              <div style={{display: 'flex', alignItems: 'center', gap: '0.6rem'}}>
+                                <img src={getFlagUrl(m.home_team)} style={{width: '24px', height: '16px', objectFit: 'cover', borderRadius: '2px', border: '1px solid #eee'}} />
+                                <span style={{fontWeight: 700}}>{getTranslatedName(m.home_team?.name)}</span>
+                                <span style={{color: '#999'}}>vs</span>
+                                <span style={{fontWeight: 700}}>{getTranslatedName(m.away_team?.name)}</span>
+                                <img src={getFlagUrl(m.away_team)} style={{width: '24px', height: '16px', objectFit: 'cover', borderRadius: '2px', border: '1px solid #eee'}} />
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`status-tag ${m.status}`} style={{fontSize: '0.7rem', padding: '2px 8px'}}>
+                                {translateStatus(m.status)}
+                              </span>
+                            </td>
+                            <td style={{fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--bg-dark)'}}>
+                              {m.home_score} - {m.away_score}
+                            </td>
+                            <td>
+                              <button className="action-btn" onClick={() => openMatchEdit(m)} style={{padding: '5px 12px', fontSize: '0.8rem'}}>
+                                <i className="ri-edit-line"></i> Editar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ))}
             </div>
@@ -474,7 +478,7 @@ export default function AdminPanel() {
             <p style={{color: 'var(--text-gray)', marginBottom: '2rem'}}>Administra los puntos y los plazos globales del sistema.</p>
             
             <form className="admin-form" onSubmit={handleUpdateConfig} style={{maxWidth: '800px'}}>
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem'}}>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '2rem'}}>
                 <div className="form-section">
                   <h4 style={{marginBottom: '1rem', color: 'var(--gold)', borderBottom: '1px solid #eee', paddingBottom: '0.5rem'}}>
                     <i className="ri-medal-fill"></i> Puntuación Fase de Grupos
@@ -561,7 +565,7 @@ export default function AdminPanel() {
               </div>
 
               <div style={{marginTop: '3rem', borderTop: '1px solid #eee', paddingTop: '2rem'}}>
-                <button type="submit" className="btn-save" disabled={isUpdatingConfig} style={{width: 'auto', padding: '1rem 4rem'}}>
+                <button type="submit" className="btn-save admin-save-config-btn" disabled={isUpdatingConfig} style={{width: 'auto', padding: '1rem 4rem'}}>
                   {isUpdatingConfig ? 'Guardando...' : 'Guardar Todos los Cambios'}
                 </button>
               </div>
@@ -577,60 +581,62 @@ export default function AdminPanel() {
             <p style={{color: 'var(--text-gray)', marginBottom: '1.5rem'}}>
               Configura la fecha límite de cada categoría y resuelve las apuestas una vez cerradas.
             </p>
-            <table className="lb-table">
-              <thead>
-                <tr><th>Categoría</th><th>Puntos</th><th>Estado</th><th>Fecha Límite (Local)</th><th>Acciones</th></tr>
-              </thead>
-              <tbody>
-                {specialBets.map(bet => {
-                  const currentDeadlineStr = editingDeadline[bet.id] !== undefined
-                    ? editingDeadline[bet.id]
-                    : (bet.deadline ? toLocalISOString(bet.deadline) : '');
-                  const isExpired = bet.deadline && new Date() > new Date(bet.deadline);
+            <div className="admin-table-wrapper">
+              <table className="lb-table">
+                <thead>
+                  <tr><th>Categoría</th><th>Puntos</th><th>Estado</th><th>Fecha Límite (Local)</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                  {specialBets.map(bet => {
+                    const currentDeadlineStr = editingDeadline[bet.id] !== undefined
+                      ? editingDeadline[bet.id]
+                      : (bet.deadline ? toLocalISOString(bet.deadline) : '');
+                    const isExpired = bet.deadline && new Date() > new Date(bet.deadline);
 
-                  return (
-                    <tr key={bet.id}>
-                      <td><div className="user-cell" style={{fontWeight: 700}}>{bet.name}</div></td>
-                      <td>{bet.points_reward} pts</td>
-                      <td>
-                        <span className={`badge-urgency ${bet.is_resolved ? 'live' : isExpired ? 'delayed' : ''}`}>
-                          {bet.is_resolved ? 'RESUELTO' : isExpired ? 'CERRADO' : 'ABIERTO'}
-                        </span>
-                      </td>
-                      <td style={{minWidth: '220px'}}>
-                        <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
-                          <input
-                            type="datetime-local"
-                            className="form-input"
-                            style={{fontSize: '0.8rem', padding: '4px 8px', margin: 0, flex: 1}}
-                            value={currentDeadlineStr}
-                            onChange={e => setEditingDeadline(prev => ({...prev, [bet.id]: e.target.value}))}
-                          />
-                          {editingDeadline[bet.id] !== undefined && editingDeadline[bet.id] !== (bet.deadline ? toLocalISOString(bet.deadline) : '') && (
-                            <button
-                              className="action-btn primary"
-                              style={{padding: '4px 10px', fontSize: '0.75rem', whiteSpace: 'nowrap'}}
-                              disabled={savingDeadline === bet.id}
-                              onClick={() => handleUpdateDeadline(bet.id)}
-                            >
-                              {savingDeadline === bet.id ? '...' : <><i className="ri-save-line"></i> Guardar</>}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <button className="action-btn primary" onClick={() => {
-                          setResolvingSpecial(bet);
-                          setSpecialAnswer('');
-                        }}>
-                          <i className="ri-check-double-line"></i> Resolver
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr key={bet.id}>
+                        <td><div className="user-cell" style={{fontWeight: 700}}>{bet.name}</div></td>
+                        <td>{bet.points_reward} pts</td>
+                        <td>
+                          <span className={`badge-urgency ${bet.is_resolved ? 'live' : isExpired ? 'delayed' : ''}`}>
+                            {bet.is_resolved ? 'RESUELTO' : isExpired ? 'CERRADO' : 'ABIERTO'}
+                          </span>
+                        </td>
+                        <td style={{minWidth: '220px'}}>
+                          <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
+                            <input
+                              type="datetime-local"
+                              className="form-input"
+                              style={{fontSize: '0.8rem', padding: '4px 8px', margin: 0, flex: 1}}
+                              value={currentDeadlineStr}
+                              onChange={e => setEditingDeadline(prev => ({...prev, [bet.id]: e.target.value}))}
+                            />
+                            {editingDeadline[bet.id] !== undefined && editingDeadline[bet.id] !== (bet.deadline ? toLocalISOString(bet.deadline) : '') && (
+                              <button
+                                className="action-btn primary"
+                                style={{padding: '4px 10px', fontSize: '0.75rem', whiteSpace: 'nowrap'}}
+                                disabled={savingDeadline === bet.id}
+                                onClick={() => handleUpdateDeadline(bet.id)}
+                              >
+                                {savingDeadline === bet.id ? '...' : <><i className="ri-save-line"></i> Guardar</>}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <button className="action-btn primary" onClick={() => {
+                            setResolvingSpecial(bet);
+                            setSpecialAnswer('');
+                          }}>
+                            <i className="ri-check-double-line"></i> Resolver
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

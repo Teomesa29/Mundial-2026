@@ -1662,6 +1662,105 @@
   transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* RESPONSIVE ADMIN PANEL LAYOUT & MOBILE OPTIMIZATIONS */
+.admin-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1.5rem;
+}
+
+.admin-table-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+.admin-table-wrapper::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.05);
+  border-radius: 3px;
+}
+.admin-table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+.admin-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.3);
+}
+
+@media (max-width: 768px) {
+  .admin-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+  }
+  
+  .admin-title {
+    font-size: 2rem !important;
+  }
+  
+  .admin-badge {
+    font-size: 0.8rem;
+  }
+  
+  .admin-tabs {
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .admin-tab {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    border-radius: 8px 8px 0 0;
+    flex-shrink: 0;
+  }
+
+  .admin-card {
+    padding: 1.2rem !important;
+    border-radius: 16px !important;
+  }
+  
+  .admin-modal {
+    padding: 1.5rem !important;
+    border-radius: 20px !important;
+    margin: 5vh auto !important;
+    width: calc(100% - 2rem) !important;
+  }
+  
+  .admin-modal h2 {
+    font-size: 1.8rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+  
+  /* Make tables readable and scrollable on small screens */
+  .lb-table th, 
+  .lb-table td {
+    padding: 0.75rem 0.5rem !important;
+    font-size: 0.85rem !important;
+  }
+  
+  /* Prevent group match details from squeezing/breaking onto multiple rows */
+  .lb-table td div[style*="display: flex"],
+  .lb-table td div[style*="display:flex"] {
+    white-space: nowrap !important;
+    min-width: max-content !important;
+  }
+
+  .lb-table td img {
+    flex-shrink: 0;
+  }
+
+  .admin-save-config-btn {
+    width: 100% !important;
+    padding: 1rem 2rem !important;
+    justify-content: center !important;
+  }
+}
+
 
 
 

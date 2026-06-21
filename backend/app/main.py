@@ -28,7 +28,7 @@ from sqlalchemy import select, or_, and_
 from app.models.models import Match
 from app.models.enums import MatchStatus
 
-last_daily_sync_time = None
+last_daily_sync_time = datetime.now(timezone.utc)
 
 async def auto_sync_loop():
     global last_daily_sync_time
@@ -44,9 +44,13 @@ async def auto_sync_loop():
                 logger.info("Base de datos de partidos vacía. Sincronización inicial...")
                 await sync_matches(session)
                 await sync_standings(session)
-                last_daily_sync_time = datetime.now(timezone.utc)
+            
+            # Siempre asegurar que last_daily_sync_time esté seteado tras la inicialización
+            last_daily_sync_time = datetime.now(timezone.utc)
     except Exception as e:
         logger.error(f"Error en sincronización inicial: {e}")
+        # En caso de error, también establecemos la hora para evitar un bucle continuo de reintentos
+        last_daily_sync_time = datetime.now(timezone.utc)
 
     while True:
         sleep_seconds = 120  # Por defecto 2 minutos
