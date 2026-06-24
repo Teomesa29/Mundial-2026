@@ -158,13 +158,20 @@ async def auto_sync_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global last_db_check_time, cached_db_ok, cached_db_response_ms
     # Startup
     logger.info("Application starting up...")
     db_ok, response_ms = await check_db_connection()
     if db_ok:
         logger.info(f"Database connection successful ({response_ms}ms)")
+        cached_db_ok = True
+        cached_db_response_ms = response_ms
+        last_db_check_time = time.time()
     else:
         logger.error("Failed to connect to the database on startup")
+        cached_db_ok = False
+        cached_db_response_ms = 0.0
+        last_db_check_time = time.time()
     
     sync_task = asyncio.create_task(auto_sync_loop())
     
@@ -269,23 +276,9 @@ async def health_check(refresh: bool = False):
     
     now = time.time()
     
-    # Determinar si estamos en el horario de inactividad (11 PM - 11 AM Colombia, UTC-5)
-    colombia_tz = timezone(timedelta(hours=-5))
-    now_colombia = datetime.now(colombia_tz)
-    is_quiet_window = now_colombia.hour < 11 or now_colombia.hour >= 23
-    
-    # Forzar el uso de la caché durante el horario de inactividad para no despertar la base de datos
-    use_cache = (
-        not refresh
-        and (
-            is_quiet_window
-            or (last_db_check_time is not None and (now - last_db_check_time) <= DB_CHECK_CACHE_DURATION_SECONDS)
-        )
-    )
-    
-    # Si es el primer check (inicio del servidor), obligamos a validar contra la BD aunque sea horario inactivo
-    if last_db_check_time is None:
-        use_cache = False
+    # Forzar el uso de la caché para no despertar la base de datos en Neon,
+    # a menos que se solicite un refresco explícito
+    use_cache = not refresh and last_db_check_time is not None
         
     if use_cache:
         db_ok = cached_db_ok
