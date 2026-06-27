@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Sidebar({ currentView, navigateTo, isAdminMode, userRole }) {
+export default function Sidebar({ currentView, navigateTo, isAdminMode, userRole, config }) {
   const [kickAnim, setKickAnim] = useState(false);
 
   const handleLogoClick = () => {
@@ -39,8 +39,14 @@ export default function Sidebar({ currentView, navigateTo, isAdminMode, userRole
           <i className="ri-calendar-event-fill"></i><span>Partidos</span>
         </button>
         <button 
-          className={`nav-item ${currentView === 'predictions' ? 'active' : ''}`} 
-          onClick={() => navigateTo('predictions')}
+          className={`nav-item ${currentView === 'predictions' || currentView === 'bracket' ? 'active' : ''}`} 
+          onClick={() => {
+            if (config && config.is_bracket_open) {
+              navigateTo('bracket');
+            } else {
+              navigateTo('predictions');
+            }
+          }}
         >
           <i className="ri-focus-3-fill"></i><span>Mis Predicciones</span>
         </button>

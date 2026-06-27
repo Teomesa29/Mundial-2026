@@ -86,16 +86,10 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int) -> None:
                 if is_exact:
                     # Exact draw predicted
                     points = p_exact
-                    # Plus, if they also guessed the penalties winner correctly (+1 point)
-                    if user_predicted_winner_id == real_winner_id:
-                        points += 1
                 else:
                     if pred_is_draw:
                         # Correct outcome (DRAW) -> p_correct (normally 3 points)
                         points = p_correct
-                        # Plus, if they guessed the penalties winner correctly -> 1 point
-                        if user_predicted_winner_id == real_winner_id:
-                            points += 1
                     else:
                         # Predicted a team to win, but it ended in a draw. They get 0 points.
                         points = 0
@@ -236,7 +230,9 @@ async def recalculate_all_teams_stats(db: AsyncSession) -> None:
 STAGE_MAPPING = {
     "GROUP_STAGE": MatchStage.group,
     "ROUND_OF_32": MatchStage.round_of_32,
+    "LAST_32": MatchStage.round_of_32,
     "ROUND_OF_16": MatchStage.round_of_16,
+    "LAST_16": MatchStage.round_of_16,
     "QUARTER_FINALS": MatchStage.quarterfinal,
     "SEMI_FINALS": MatchStage.semifinal,
     "THIRD_PLACE": MatchStage.third_place,

@@ -29,7 +29,6 @@ export default function Dashboard({ navigateTo }) {
         setUpcomingMatches(upcoming);
 
         // Calculate user summary
-        const totalMatches = live.length + upcoming.length + (myPreds?.length || 0); // Simplified
         const completedPreds = myPreds?.length || 0;
         setUserSummary({
           points: me.total_points || 0,

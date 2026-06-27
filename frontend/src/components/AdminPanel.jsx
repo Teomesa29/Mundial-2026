@@ -3,6 +3,9 @@ import { api } from '../utils/api';
 import { getTranslatedName } from '../utils/translations';
 import LoadingScreen from './LoadingScreen';
 
+let notificationCounter = 0;
+let tempUserCounter = 0;
+
 const toLocalISOString = (dateOrStr) => {
   if (!dateOrStr) return '';
   const date = new Date(dateOrStr);
@@ -39,11 +42,6 @@ export default function AdminPanel() {
   const [editingDeadline, setEditingDeadline] = useState({}); // { [catId]: 'datetime-local string' }
   const [savingDeadline, setSavingDeadline] = useState(null);
 
-  useEffect(() => {
-    fetchAdminData();
-    if (activeTab === 'especiales') fetchSpecialBets();
-  }, [activeTab]);
-
   const fetchSpecialBets = async () => {
     try {
       const data = await api.get('/admin/special-bets/pending');
@@ -63,6 +61,7 @@ export default function AdminPanel() {
       setSpecialAnswer('');
       fetchSpecialBets();
     } catch (err) {
+      console.error(err);
       addNotification('Error', 'No se pudo resolver la apuesta', 'error');
     }
   };
@@ -80,6 +79,7 @@ export default function AdminPanel() {
       setSpecialBets(prev => prev.map(b => b.id === catId ? { ...b, deadline: utcIso } : b));
       setEditingDeadline(prev => { const n = {...prev}; delete n[catId]; return n; });
     } catch (err) {
+      console.error(err);
       addNotification('Error', 'No se pudo actualizar la fecha', 'error');
     } finally {
       setSavingDeadline(null);
@@ -87,7 +87,7 @@ export default function AdminPanel() {
   };
 
   const addNotification = (title, msg, type = 'success') => {
-    const id = Date.now();
+    const id = ++notificationCounter;
     setNotifications(prev => [...prev, { id, title, msg, type }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
@@ -109,6 +109,7 @@ export default function AdminPanel() {
       setTeams(teamsData);
       fetchConfig();
     } catch (err) {
+      console.error(err);
       addNotification('Error', 'No se pudieron cargar los datos', 'error');
     } finally {
       setLoading(false);
@@ -124,6 +125,14 @@ export default function AdminPanel() {
     }
   };
 
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    fetchAdminData();
+    if (activeTab === 'especiales') fetchSpecialBets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const handleUpdateConfig = async (e) => {
     e.preventDefault();
     setIsUpdatingConfig(true);
@@ -132,6 +141,7 @@ export default function AdminPanel() {
       setConfig(updated);
       addNotification('Éxito', 'Configuración actualizada correctamente');
     } catch (err) {
+      console.error(err);
       addNotification('Error', 'Error al actualizar la configuración', 'error');
     } finally {
       setIsUpdatingConfig(false);
@@ -146,7 +156,7 @@ export default function AdminPanel() {
 
     // ── Optimistic UI: close modal and show user immediately ──
     const tempUser = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${++tempUserCounter}`,
       display_name: newUserData.display_name,
       email: newUserData.email,
       role: newUserData.role,
@@ -213,6 +223,7 @@ export default function AdminPanel() {
       addNotification('Sincronizado', `Sincronización de ${type} finalizada: ${res.updated} actualizados, ${res.created} creados`);
       fetchAdminData();
     } catch (err) {
+      console.error(err);
       addNotification('Error', 'Sincronización fallida. Puede ser por límites de la API externa.', 'error');
     } finally {
       setIsSyncing(false);
@@ -236,6 +247,7 @@ export default function AdminPanel() {
       setEditingMatch(null);
       fetchAdminData();
     } catch (err) {
+      console.error(err);
       addNotification('Error', 'Error al actualizar el partido', 'error');
     }
   };

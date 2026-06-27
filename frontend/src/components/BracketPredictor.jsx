@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
 import { getTranslatedName } from '../utils/translations';
 import copaLogo from '../assets/copa.png';
+import LoadingScreen from './LoadingScreen';
 
 const BRACKET_STRUCTURE = {
   round_of_32: Array.from({ length: 16 }, (_, i) => ({ id: i + 1, nextMatchId: Math.floor(i / 2) + 17, isHome: i % 2 === 0 })),
@@ -21,168 +22,73 @@ const STAGE_TO_BRACKET_IDS = {
   third_place: [32]
 };
 
-const propagateState = (state) => {
-  const newState = { ...state };
 
-  const getWinner = (m) => {
-    if (!m) return null;
-    const homeScore = m.predicted_home;
-    const awayScore = m.predicted_away;
-    if (homeScore === '' || awayScore === '') return null;
-    if (homeScore > awayScore) return m.home;
-    if (awayScore > homeScore) return m.away;
-    
-    // Draw
-    if (m.predicted_winner_id === m.home?.id) return m.home;
-    if (m.predicted_winner_id === m.away?.id) return m.away;
-    
-    return m.home; // Default fallback
-  };
-
-  const getLoser = (m) => {
-    if (!m) return null;
-    const homeScore = m.predicted_home;
-    const awayScore = m.predicted_away;
-    if (homeScore === '' || awayScore === '') return null;
-    if (homeScore > awayScore) return m.away;
-    if (awayScore > homeScore) return m.home;
-    
-    // Draw
-    if (m.predicted_winner_id === m.home?.id) return m.away;
-    if (m.predicted_winner_id === m.away?.id) return m.home;
-    
-    return m.away; // Default fallback
-  };
-
-  // Clear subsequent round home/away teams before propagating
-  const stagesToClear = ['round_of_16', 'quarterfinal', 'semifinal', 'final', 'third_place'];
-  stagesToClear.forEach(stage => {
-    BRACKET_STRUCTURE[stage].forEach(matchDef => {
-      if (newState[matchDef.id]) {
-        newState[matchDef.id].home = null;
-        newState[matchDef.id].away = null;
-      }
-    });
-  });
-
-  // 1. Propagate round_of_32 -> round_of_16
-  BRACKET_STRUCTURE.round_of_32.forEach(mDef => {
-    const winner = getWinner(newState[mDef.id]);
-    const nextMatch = newState[mDef.nextMatchId];
-    if (nextMatch) {
-      if (mDef.isHome) nextMatch.home = winner;
-      else nextMatch.away = winner;
-    }
-  });
-
-  // 2. Propagate round_of_16 -> quarterfinal
-  BRACKET_STRUCTURE.round_of_16.forEach(mDef => {
-    const winner = getWinner(newState[mDef.id]);
-    const nextMatch = newState[mDef.nextMatchId];
-    if (nextMatch) {
-      if (mDef.isHome) nextMatch.home = winner;
-      else nextMatch.away = winner;
-    }
-  });
-
-  // 3. Propagate quarterfinal -> semifinal
-  BRACKET_STRUCTURE.quarterfinal.forEach(mDef => {
-    const winner = getWinner(newState[mDef.id]);
-    const nextMatch = newState[mDef.nextMatchId];
-    if (nextMatch) {
-      if (mDef.isHome) nextMatch.home = winner;
-      else nextMatch.away = winner;
-    }
-  });
-
-  // 4. Propagate semifinal -> final & third_place
-  BRACKET_STRUCTURE.semifinal.forEach(mDef => {
-    const winner = getWinner(newState[mDef.id]);
-    const loser = getLoser(newState[mDef.id]);
-
-    const finalMatch = newState[31];
-    if (finalMatch) {
-      if (mDef.isHome) finalMatch.home = winner;
-      else finalMatch.away = winner;
-    }
-
-    const thirdPlaceMatch = newState[32];
-    if (thirdPlaceMatch) {
-      if (mDef.isHome) thirdPlaceMatch.home = loser;
-      else thirdPlaceMatch.away = loser;
-    }
-  });
-
-  return newState;
-};
+let notificationCounter = 0;
 
 export default function BracketPredictor({ navigateTo, userRole }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+
+  const addNotification = (title, msg, type = 'success') => {
+    const id = ++notificationCounter;
+    setNotifications(prev => [...prev, { id, title, msg, type }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4000);
+  };
   
-  const [r32Matches, setR32Matches] = useState([]);
   const [bracketState, setBracketState] = useState({});
   const [config, setConfig] = useState(null);
   const [bracketReady, setBracketReady] = useState({ is_ready: false });
 
-  const calculatePoints = (predHome, predAway, realHome, realAway, predWinnerId, homeTeamId, awayTeamId, realHomePen, realAwayPen) => {
-    if (predHome === '' || predAway === '' || realHome == null || realAway == null) return 0;
-    
-    const p_exact = config?.points_exact_score || 5;
-    const p_correct = config?.points_correct_result || 2;
-    
-    const isExact = (predHome === realHome && predAway === realAway);
-    
-    const realWinner = realHome > realAway ? 'home' : realAway > realHome ? 'away' : 'draw';
-    const predWinner = predHome > predAway ? 'home' : predAway > predHome ? 'away' : 'draw';
-    const isCorrectResult = (realWinner === predWinner);
-    
-    let points = 0;
-    const realIsDraw = (realHome === realAway);
-    const predIsDraw = (predHome === predAway);
-    
-    if (realIsDraw) {
-      let realWinnerId = null;
-      if (realHomePen != null && realAwayPen != null) {
-        realWinnerId = realHomePen > realAwayPen ? homeTeamId : awayTeamId;
-      }
+  useEffect(() => {
+    const calculatePoints = (predHome, predAway, realHome, realAway, predWinnerId, homeTeamId, awayTeamId, realHomePen, realAwayPen) => {
+      if (predHome === '' || predAway === '' || realHome == null || realAway == null) return 0;
       
-      let userWinnerId = null;
-      if (predHome > predAway) userWinnerId = homeTeamId;
-      else if (predAway > predHome) userWinnerId = awayTeamId;
-      else userWinnerId = predWinnerId;
+      const isExact = (predHome === realHome && predAway === realAway);
       
-      if (isExact) {
-        points = 5;
-        if (userWinnerId && userWinnerId === realWinnerId) {
-          points += 1;
+      const realWinner = realHome > realAway ? 'home' : realAway > realHome ? 'away' : 'draw';
+      const predWinner = predHome > predAway ? 'home' : predAway > predHome ? 'away' : 'draw';
+      const isCorrectResult = (realWinner === predWinner);
+      
+      let points = 0;
+      const realIsDraw = (realHome === realAway);
+      const predIsDraw = (predHome === predAway);
+      
+      if (realIsDraw) {
+        let realWinnerId = null;
+        if (realHomePen != null && realAwayPen != null) {
+          realWinnerId = realHomePen > realAwayPen ? homeTeamId : awayTeamId;
+        }
+        
+        let userWinnerId;
+        if (predHome > predAway) userWinnerId = homeTeamId;
+        else if (predAway > predHome) userWinnerId = awayTeamId;
+        else userWinnerId = predWinnerId;
+        
+        if (isExact) {
+          points = 5;
+        } else {
+          if (predIsDraw) {
+            points = 3;
+          } else {
+            points = 0;
+          }
         }
       } else {
-        if (predIsDraw) {
-          points = 2;
-          if (userWinnerId && userWinnerId === realWinnerId) {
-            points += 1;
-          }
-        } else {
-          if (userWinnerId && userWinnerId === realWinnerId) {
-            points = 1;
-          }
+        if (isExact) {
+          points = 5;
+        } else if (isCorrectResult) {
+          points = 3;
         }
       }
-    } else {
-      if (isExact) {
-        points = 5;
-      } else if (isCorrectResult) {
-        points = 2;
-      }
-    }
-    
-    return points;
-  };
-  
-  useEffect(() => {
+      
+      return points;
+    };
+
     const fetchData = async () => {
       try {
         const [matchesData, bracketResponse, configData, statusData] = await Promise.all([
@@ -220,8 +126,6 @@ export default function BracketPredictor({ navigateTo, userRole }) {
           return acc;
         }, {});
 
-        const r32MatchesArray = [];
-
         Object.keys(STAGE_TO_BRACKET_IDS).forEach(stage => {
           const stageMatches = groupedMatches[stage] || [];
           const sortedMatches = [...stageMatches].sort((a, b) => (a.match_number || a.id) - (b.match_number || b.id));
@@ -236,17 +140,12 @@ export default function BracketPredictor({ navigateTo, userRole }) {
               newState[bracketId].real_away = match.away_score;
               newState[bracketId].real_home_penalties = match.home_score_penalties;
               newState[bracketId].real_away_penalties = match.away_score_penalties;
-              
-              if (stage === 'round_of_32') {
-                newState[bracketId].home = match.home_team;
-                newState[bracketId].away = match.away_team;
-                r32MatchesArray.push(match);
-              }
+              newState[bracketId].match_date = match.match_date;
+              newState[bracketId].home = match.home_team;
+              newState[bracketId].away = match.away_team;
             }
           });
         });
-
-        setR32Matches(r32MatchesArray);
 
         const savedData = bracketResponse?.bracket_data || {};
         Object.keys(savedData).forEach(idStr => {
@@ -258,8 +157,6 @@ export default function BracketPredictor({ navigateTo, userRole }) {
             newState[bracketId].predicted_winner_id = savedMatch.predicted_winner_id ?? null;
           }
         });
-
-        newState = propagateState(newState);
 
         Object.keys(newState).forEach(idStr => {
           const bracketId = parseInt(idStr);
@@ -294,17 +191,24 @@ export default function BracketPredictor({ navigateTo, userRole }) {
     if (userRole === 'admin') return false;
     if (!config) return false;
     if (!config.is_bracket_open) return true;
-    if (config.entry_deadline) {
-      const deadline = new Date(config.entry_deadline);
-      return new Date() > deadline;
-    }
     return false;
   };
 
   const isLocked = isGlobalLocked();
 
+  const isMatchLocked = (matchData) => {
+    if (userRole === 'admin') return false;
+    if (isLocked) return true;
+    if (!matchData?.match_date) return false;
+    const matchTime = new Date(matchData.match_date);
+    const lockTime = new Date(matchTime.getTime() - 15 * 60 * 1000);
+    return new Date() >= lockTime;
+  };
+
   const handleScoreChange = (matchId, team, value) => {
     if (isLocked) return;
+    const currentMatch = bracketState[matchId];
+    if (isMatchLocked(currentMatch)) return;
     setBracketState(prev => {
       const updatedMatch = {
         ...prev[matchId],
@@ -330,12 +234,14 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         [matchId]: updatedMatch
       };
       
-      return propagateState(tempState);
+      return tempState;
     });
   };
 
   const handleSelectWinner = (matchId, teamId) => {
     if (isLocked) return;
+    const currentMatch = bracketState[matchId];
+    if (isMatchLocked(currentMatch)) return;
     setBracketState(prev => {
       const match = prev[matchId];
       if (match.predicted_home === '' || match.predicted_away === '') return prev;
@@ -351,14 +257,17 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         [matchId]: updatedMatch
       };
       
-      return propagateState(tempState);
+      return tempState;
     });
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
+  const handleSave = async (isAuto = false) => {
+    if (!isAuto) {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+    }
+    
     try {
       const minifiedData = {};
       Object.entries(bracketState).forEach(([id, match]) => {
@@ -370,15 +279,43 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       });
 
       await api.post('/predictions/bracket', { bracket_data: minifiedData });
-      setSuccess('¡Tus pronósticos de la fase final se han guardado exitosamente!');
-      setTimeout(() => setSuccess(null), 3000);
+      if (!isAuto) {
+        addNotification('¡Guardado!', 'Tus pronósticos de la fase final se han guardado exitosamente.', 'success');
+      }
     } catch (err) {
       console.error('Error saving bracket:', err);
-      setError(err.message || 'Error al guardar las llaves.');
+      if (!isAuto) {
+        addNotification('Error', err.message || 'Error al guardar las llaves.', 'error');
+      }
     } finally {
-      setSaving(false);
+      if (!isAuto) setSaving(false);
     }
   };
+
+  const initialLoadRef = useRef(true);
+  const saveTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
+      return;
+    }
+    
+    if (isLocked) return;
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      handleSave(true);
+    }, 1500);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bracketState]);
 
   const getFlagUrl = (team) => {
     if (!team) return 'https://flagcdn.com/w80/un.png';
@@ -396,6 +333,14 @@ export default function BracketPredictor({ navigateTo, userRole }) {
     const realAway = matchData.real_away;
     const realHomePen = matchData.real_home_penalties;
     const realAwayPen = matchData.real_away_penalties;
+    
+    const isM_Locked = isMatchLocked(matchData);
+    
+    const matchDate = matchData.match_date ? new Date(matchData.match_date) : null;
+    const formattedDate = matchDate && !isNaN(matchDate.getTime()) 
+      ? matchDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      : null;
+    const showDate = matchDef.id <= 16 && formattedDate;
 
     let statusClass = 'interactive';
     if (isDisabled) {
@@ -404,14 +349,16 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       if (points >= 4) statusClass = 'state-exact';
       else if (points >= 1) statusClass = 'state-result';
       else statusClass = 'state-fail';
+    } else if (isM_Locked) {
+      statusClass = 'locked-match';
     }
 
     const renderTeamRow = (team, isHome) => {
       const scoreKey = isHome ? 'predicted_home' : 'predicted_away';
       const scoreValue = matchData[scoreKey] ?? '';
 
-      // Determine border radius to look nice with footer
-      const borderTopRadius = isHome ? '14px' : '0';
+      // Determine border radius to look nice with footer/header
+      const borderTopRadius = (isHome && !showDate) ? '14px' : '0';
       const borderBottomRadius = (!isHome && !isFinished) ? '14px' : '0';
 
       const rowStyle = {
@@ -428,12 +375,12 @@ export default function BracketPredictor({ navigateTo, userRole }) {
 
       if (isRightSide) {
         const isWinner = team && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away && matchData.predicted_winner_id === team.id;
-        const isCursorPointer = team && !isDisabled && !isLocked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
+        const isCursorPointer = team && !isDisabled && !isLocked && !isM_Locked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
         
         return (
           <div 
             className={`bm-team ${isWinner ? 'winner' : ''}`} 
-            onClick={() => team && handleSelectWinner(matchDef.id, team.id)}
+            onClick={() => team && !isM_Locked && handleSelectWinner(matchDef.id, team.id)}
             style={{ 
               ...rowStyle, 
               cursor: isCursorPointer ? 'pointer' : 'default',
@@ -471,8 +418,8 @@ export default function BracketPredictor({ navigateTo, userRole }) {
                     }
                   }}
                   placeholder="-"
-                  readOnly={isLocked}
-                  style={{ width: '38px', height: '26px', border: '1px solid #ccc', borderRadius: '6px', textAlign: 'center', fontSize: '0.95rem', fontWeight: 'bold', marginRight: 'auto', background: '#fff', color: '#000', outline: 'none' }}
+                  readOnly={isLocked || isM_Locked}
+                  style={{ width: '38px', height: '26px', border: '1px solid #ccc', borderRadius: '6px', textAlign: 'center', fontSize: '0.95rem', fontWeight: 'bold', marginRight: 'auto', background: isM_Locked ? '#eaeaea' : '#fff', color: '#000', outline: 'none' }}
                 />
               )
             ) : (
@@ -503,12 +450,12 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         );
       } else {
         const isWinner = team && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away && matchData.predicted_winner_id === team.id;
-        const isCursorPointer = team && !isDisabled && !isLocked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
+        const isCursorPointer = team && !isDisabled && !isLocked && !isM_Locked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
 
         return (
           <div 
             className={`bm-team ${isWinner ? 'winner' : ''}`} 
-            onClick={() => team && handleSelectWinner(matchDef.id, team.id)}
+            onClick={() => team && !isM_Locked && handleSelectWinner(matchDef.id, team.id)}
             style={{ 
               ...rowStyle, 
               cursor: isCursorPointer ? 'pointer' : 'default',
@@ -566,8 +513,8 @@ export default function BracketPredictor({ navigateTo, userRole }) {
                     }
                   }}
                   placeholder="-"
-                  readOnly={isLocked}
-                  style={{ width: '38px', height: '26px', border: '1px solid #ccc', borderRadius: '6px', textAlign: 'center', fontSize: '0.95rem', fontWeight: 'bold', marginLeft: 'auto', background: '#fff', color: '#000', outline: 'none' }}
+                  readOnly={isLocked || isM_Locked}
+                  style={{ width: '38px', height: '26px', border: '1px solid #ccc', borderRadius: '6px', textAlign: 'center', fontSize: '0.95rem', fontWeight: 'bold', marginLeft: 'auto', background: isM_Locked ? '#eaeaea' : '#fff', color: '#000', outline: 'none' }}
                 />
               )
             )}
@@ -578,6 +525,22 @@ export default function BracketPredictor({ navigateTo, userRole }) {
 
     return (
       <div className={`bracket-match-card ${statusClass}`} key={matchDef.id} style={{ display: 'flex', flexDirection: 'column' }}>
+        {showDate && (
+          <div style={{ 
+            fontSize: '0.65rem', 
+            textAlign: 'center', 
+            background: 'rgba(0,0,0,0.04)', 
+            padding: '3px 0', 
+            borderTopLeftRadius: '14px', 
+            borderTopRightRadius: '14px', 
+            color: 'var(--text-gray)', 
+            fontWeight: 800, 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.5px' 
+          }}>
+            {formattedDate}
+          </div>
+        )}
         {renderTeamRow(homeTeam, true)}
         {renderTeamRow(awayTeam, false)}
         
@@ -620,9 +583,9 @@ export default function BracketPredictor({ navigateTo, userRole }) {
     );
   };
 
-  if (loading) return <div className="loading-state">Cargando llaves...</div>;
+  if (loading) return <LoadingScreen text="CARGANDO LLAVES..." />;
 
-  if (!bracketReady?.is_ready) {
+  if (!bracketReady?.is_ready && !config?.is_bracket_open) {
     return (
       <div className="view" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center', minHeight: '60vh' }}>
         <div style={{
@@ -662,6 +625,23 @@ export default function BracketPredictor({ navigateTo, userRole }) {
 
   return (
     <div className="view bracket-predictor-view">
+      {/* Notifications Portal */}
+      <div className="notification-container">
+        {notifications.map(n => (
+          <div key={n.id} className={`notification ${n.type}`}>
+            <div className="notification-icon">
+              {n.type === 'success' ? <i className="ri-checkbox-circle-fill" style={{color: 'var(--green)'}}></i> : 
+               n.type === 'error' ? <i className="ri-error-warning-fill" style={{color: 'var(--red)'}}></i> :
+               <i className="ri-time-fill" style={{color: 'var(--gold)'}}></i>}
+            </div>
+            <div className="notification-content">
+              <span className="notification-title">{n.title}</span>
+              <span className="notification-msg">{n.msg}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <style>{`
         .bracket-predictor-view {
           max-width: 100%;
@@ -679,6 +659,11 @@ export default function BracketPredictor({ navigateTo, userRole }) {
           background: rgba(220, 220, 220, 0.35) !important;
           border: 1px dashed rgba(0,0,0,0.15) !important;
           pointer-events: none;
+        }
+        .locked-match {
+          border: 1px solid rgba(0,0,0,0.15) !important;
+          background: rgba(240, 240, 240, 0.6) !important;
+          box-shadow: none !important;
         }
         .interactive {
           border: 1px solid rgba(201,168,76,0.4) !important;

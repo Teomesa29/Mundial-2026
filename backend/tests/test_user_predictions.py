@@ -153,3 +153,91 @@ async def test_get_user_predictions_not_found():
         assert response.json()["detail"] == "Usuario no encontrado"
     finally:
         app.dependency_overrides.clear()
+
+@pytest.mark.asyncio
+async def test_get_user_predictions_visible_group_stage():
+    # Mock user and predictions data
+    mock_user = MagicMock(spec=User)
+    mock_user.id = 1
+    mock_user.role = UserRole.participant
+    mock_user.is_active = True
+
+    # Prediction for group stage match scheduled in the future (should be visible)
+    mock_match_future = MagicMock(spec=Match)
+    mock_match_future.id = 11
+    mock_match_future.status = MatchStatus.scheduled
+    mock_match_future.stage = MatchStage.group
+    from datetime import datetime, timezone, timedelta
+    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+    mock_match_future.match_date = tomorrow
+    mock_match_future.home_team = MagicMock(spec=Team)
+    mock_match_future.home_team.name = "Argentina"
+    mock_match_future.home_team.country_code = "AR"
+    mock_match_future.home_team.flag_emoji = "🇦🇷"
+    mock_match_future.home_team.confederation = ConfederationType.CONMEBOL
+    mock_match_future.home_team.logo_url = None
+    mock_match_future.away_team = MagicMock(spec=Team)
+    mock_match_future.away_team.name = "Brazil"
+    mock_match_future.away_team.country_code = "BR"
+    mock_match_future.away_team.flag_emoji = "🇧🇷"
+    mock_match_future.away_team.confederation = ConfederationType.CONMEBOL
+    mock_match_future.away_team.logo_url = None
+    mock_match_future.group = MagicMock(spec=Group)
+    mock_match_future.group.name = "A"
+    mock_match_future.stadium = MagicMock(spec=Stadium)
+    mock_match_future.stadium.name = "Lusail Stadium"
+    mock_match_future.stadium.city = "Lusail"
+    mock_match_future.stadium.country = "Qatar"
+
+    mock_pred_future = MagicMock(spec=MatchPrediction)
+    mock_pred_future.id = 101
+    mock_pred_future.user_id = 2
+    mock_pred_future.match_id = 11
+    mock_pred_future.predicted_home_score = 2
+    mock_pred_future.predicted_away_score = 1
+    mock_pred_future.predicted_winner_id = None
+    mock_pred_future.points_earned = None
+    mock_pred_future.is_correct_result = None
+    mock_pred_future.is_exact_score = None
+    mock_pred_future.submitted_at = datetime.now(timezone.utc)
+    mock_pred_future.match = mock_match_future
+
+    db = AsyncMock()
+    
+    mock_execute_user = MagicMock()
+    mock_execute_user.scalar_one_or_none.return_value = 2 # Target user exists
+    
+    mock_execute_preds = MagicMock()
+    mock_execute_preds.scalars.return_value.unique.return_value.all.return_value = [mock_pred_future]
+
+    mock_execute_config = MagicMock()
+    mock_execute_config.scalar_one_or_none.return_value = None # Defaults to 60 mins
+
+    def db_execute_mock(query, *args, **kwargs):
+        q_str = str(query).lower()
+        if "from users" in q_str:
+            return mock_execute_user
+        elif "from match_predictions" in q_str:
+            return mock_execute_preds
+        elif "from polla_config" in q_str:
+            return mock_execute_config
+        return MagicMock()
+
+    db.execute.side_effect = db_execute_mock
+
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_db] = lambda: db
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/predictions/user/2")
+            
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["id"] == 101
+        # Prediction values should be visible (2 and 1) because it is a group stage match
+        assert data[0]["predicted_home_score"] == 2
+        assert data[0]["predicted_away_score"] == 1
+    finally:
+        app.dependency_overrides.clear()

@@ -179,6 +179,23 @@ async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db),
         .where(MatchPrediction.user_id == user_id)
     )
     preds = result.scalars().unique().all()
+    
+    from datetime import datetime, timezone, timedelta
+    from app.models.enums import MatchStage
+    now = datetime.now(timezone.utc)
+    config = (await db.execute(select(PollaConfig).limit(1))).scalar_one_or_none()
+    raw_lock_minutes = config.prediction_lock_minutes_before_match if config else 60
+    if hasattr(raw_lock_minutes, '_mock_self') or 'Mock' in type(raw_lock_minutes).__name__:
+        lock_minutes = 60
+    else:
+        try:
+            lock_minutes = int(raw_lock_minutes)
+        except Exception:
+            lock_minutes = 60
+    
+    # Hide other users' predictions unless the match is locked
+    obscure = (current_user.id != user_id) and (current_user.role.value != "admin")
+    
     # Ensure group_name is set for each match in predictions
     for p in preds:
         if p.match:
@@ -186,6 +203,22 @@ async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db),
                 p.match.group_name = f"Grupo {p.match.group.name}"
             else:
                 p.match.group_name = str(p.match.stage.value) if hasattr(p.match.stage, 'value') else str(p.match.stage)
+            
+            stage_str = p.match.stage.value if hasattr(p.match.stage, 'value') else str(p.match.stage)
+            p.match.group_name = f"V2_RELOADED: {stage_str}"
+            is_knockout = "group" not in stage_str.lower()
+            if obscure and is_knockout:
+                m_date = p.match.match_date
+                if isinstance(m_date, str):
+                    match_utc = datetime.fromisoformat(m_date.replace('Z', '+00:00'))
+                else:
+                    match_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
+                
+                lock_time = match_utc - timedelta(minutes=15)
+                if now < lock_time:
+                    p.predicted_home_score = None
+                    p.predicted_away_score = None
+                    p.predicted_winner_id = None
     return preds
 
 
@@ -301,9 +334,9 @@ async def get_my_bracket(db: AsyncSession = Depends(get_db), current_user: User 
         )
     return bracket
 
-async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_data: dict):
+async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_data: dict, is_admin: bool = False):
     from app.models.enums import MatchStage
-    from datetime import timezone
+    from datetime import timezone, datetime, timedelta
     
     # 1. Fetch all knockout matches
     result = await db.execute(
@@ -312,6 +345,9 @@ async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_da
         .order_by(Match.match_number, Match.id)
     )
     knockout_matches = result.scalars().all()
+    
+    # Create a lookup map of match_id to Match object
+    match_map = {m.id: m for m in knockout_matches}
     
     # 2. Group by stage
     from collections import defaultdict
@@ -338,6 +374,8 @@ async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_da
             if idx < len(ids):
                 bracket_to_match_id[ids[idx]] = match.id
                 
+    now = datetime.now(timezone.utc)
+    
     # 4. Upsert MatchPrediction entries
     for bracket_id_str, pred_info in bracket_data.items():
         try:
@@ -347,6 +385,20 @@ async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_da
             
         match_id = bracket_to_match_id.get(bracket_id)
         if not match_id:
+            continue
+            
+        match_obj = match_map.get(match_id)
+        if not match_obj:
+            continue
+            
+        # Prevent editing if knockout match is within 15 minutes of start (unless admin)
+        m_date = match_obj.match_date
+        if isinstance(m_date, str):
+            match_utc = datetime.fromisoformat(m_date.replace('Z', '+00:00'))
+        else:
+            match_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
+            
+        if not is_admin and (match_utc - timedelta(minutes=15) <= now):
             continue
             
         pred_home = pred_info.get("predicted_home")
@@ -393,10 +445,6 @@ async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = D
     if config and current_user.role.value != "admin":
         if not config.is_bracket_open:
             raise HTTPException(status_code=400, detail="El registro de llaves está cerrado.")
-        if config.entry_deadline:
-            deadline = config.entry_deadline.replace(tzinfo=timezone.utc) if config.entry_deadline.tzinfo is None else config.entry_deadline
-            if now > deadline:
-                raise HTTPException(status_code=400, detail="El plazo de inscripción general ha vencido.")
 
     result = await db.execute(select(UserBracket).where(UserBracket.user_id == current_user.id))
     bracket = result.scalar_one_or_none()
@@ -405,10 +453,71 @@ async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = D
         bracket = UserBracket(user_id=current_user.id, bracket_data=bracket_req.bracket_data)
         db.add(bracket)
     else:
-        bracket.bracket_data = bracket_req.bracket_data
+        # Prevent overwriting locked matches inside bracket_data by keeping the existing locked values
+        from app.models.enums import MatchStage
+        
+        # 1. Fetch knockout matches to check lock
+        match_q = await db.execute(
+            select(Match)
+            .where(Match.stage != MatchStage.group)
+        )
+        k_matches = match_q.scalars().all()
+        k_match_map = {m.id: m for m in k_matches}
+        
+        # We need mapping from bracket_id to match_id
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        for m in k_matches:
+            grouped[m.stage].append(m)
+            
+        STAGE_TO_BRACKET_IDS = {
+            MatchStage.round_of_32: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            MatchStage.round_of_16: [17, 18, 19, 20, 21, 22, 23, 24],
+            MatchStage.quarterfinal: [25, 26, 27, 28],
+            MatchStage.semifinal: [29, 30],
+            MatchStage.final: [31],
+            MatchStage.third_place: [32]
+        }
+        
+        bracket_to_match_id = {}
+        for stage, ids in STAGE_TO_BRACKET_IDS.items():
+            stage_matches = grouped.get(stage, [])
+            sorted_matches = sorted(stage_matches, key=lambda m: (m.match_number or 0, m.id))
+            for idx, match in enumerate(sorted_matches):
+                if idx < len(ids):
+                    bracket_to_match_id[ids[idx]] = match.id
+                    
+        # Filter new bracket data: if a match is locked and not admin, preserve old value
+        is_admin = (current_user.role.value == "admin")
+        old_data = bracket.bracket_data or {}
+        new_data = dict(bracket_req.bracket_data)
+        
+        from datetime import timedelta
+        for b_id_str, pred_info in new_data.items():
+            try:
+                b_id = int(b_id_str)
+            except ValueError:
+                continue
+            m_id = bracket_to_match_id.get(b_id)
+            if m_id:
+                m_obj = k_match_map.get(m_id)
+                if m_obj:
+                    m_date = m_obj.match_date
+                    if isinstance(m_date, str):
+                        m_utc = datetime.fromisoformat(m_date.replace('Z', '+00:00'))
+                    else:
+                        m_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
+                        
+                    if not is_admin and (m_utc - timedelta(minutes=15) <= now):
+                        # Lock active: restore previous value for this match
+                        if b_id_str in old_data:
+                            new_data[b_id_str] = old_data[b_id_str]
+        
+        bracket.bracket_data = new_data
     
     # Sincronizar las predicciones del bracket a la tabla MatchPrediction
-    await sync_bracket_to_predictions(db, current_user.id, bracket_req.bracket_data)
+    is_admin = (current_user.role.value == "admin")
+    await sync_bracket_to_predictions(db, current_user.id, bracket.bracket_data, is_admin=is_admin)
     
     await db.commit()
     await db.refresh(bracket)

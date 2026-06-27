@@ -3,7 +3,7 @@ import { api } from '../utils/api';
 import { getTranslatedName, getTranslatedStage } from '../utils/translations';
 import LoadingScreen from './LoadingScreen';
 
-export default function Predictions({ userRole, navigateTo }) {
+export default function Predictions({ navigateTo }) {
   const [matches, setMatches] = useState([]);
   const [predictions, setPredictions] = useState({});
   const [config, setConfig] = useState(null);
@@ -24,7 +24,7 @@ export default function Predictions({ userRole, navigateTo }) {
           api.get('/predictions/my'),
           api.get('/matches/config')
         ]);
-        setMatches(matchesData);
+        setMatches(matchesData.filter(m => m.stage === 'group'));
         setConfig(configData);
 
         const predsObj = {};
@@ -82,6 +82,7 @@ export default function Predictions({ userRole, navigateTo }) {
     const currentPreds = { ...predictions };
     const tempId = pred.id || `temp-${matchId}`;
 
+    setSavingId(matchId);
     setPredictions(prev => ({ ...prev, [matchId]: { ...prev[matchId], id: tempId } }));
     setSaveMessage(prev => ({ ...prev, [matchId]: '¡Guardado!' }));
     setTimeout(() => setSaveMessage(prev => ({ ...prev, [matchId]: null })), 2000);
@@ -102,6 +103,8 @@ export default function Predictions({ userRole, navigateTo }) {
       setPredictions(currentPreds);
       setSaveMessage(prev => ({ ...prev, [matchId]: `Error: ${err.message}` }));
       setTimeout(() => setSaveMessage(prev => ({ ...prev, [matchId]: null })), 3000);
+    } finally {
+      setSavingId(null);
     }
   };
 
@@ -217,7 +220,7 @@ export default function Predictions({ userRole, navigateTo }) {
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: 'var(--bg-dark)' }}>Tu Progreso</h3>
                   <p style={{ margin: 0, color: 'var(--text-gray)', fontWeight: 600, fontSize: '0.95rem' }}>
-                    {Object.keys(predictions).length} de {matches.length} partidos pronosticados
+                    {matches.filter(m => predictions[m.id]).length} de {matches.length} partidos pronosticados
                   </p>
                 </div>
               </div>
@@ -229,7 +232,7 @@ export default function Predictions({ userRole, navigateTo }) {
                   display: 'block',
                   lineHeight: 1
                 }}>
-                  {Math.round((Object.keys(predictions).length / (matches.length || 1)) * 100)}%
+                  {Math.round((matches.filter(m => predictions[m.id]).length / (matches.length || 1)) * 100)}%
                 </span>
                 <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '1px' }}>Completado</span>
               </div>
@@ -251,7 +254,7 @@ export default function Predictions({ userRole, navigateTo }) {
                 left: 0,
                 height: '100%',
                 background: '#2D6A4F',
-                width: `${Math.min(100, Math.round((Object.keys(predictions).length / (matches.length || 1)) * 100))}%`,
+                width: `${Math.min(100, Math.round((matches.filter(m => predictions[m.id]).length / (matches.length || 1)) * 100))}%`,
                 transition: 'width 1s ease-in-out',
                 borderRadius: '10px'
               }}></div>

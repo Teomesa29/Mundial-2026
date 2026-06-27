@@ -97,6 +97,9 @@ class MatchPredictionCreate(MatchPredictionBase):
 class MatchPredictionResponse(MatchPredictionBase):
     id: int
     user_id: int
+    predicted_home_score: Optional[int] = None
+    predicted_away_score: Optional[int] = None
+    predicted_winner_id: Optional[int] = None
     points_earned: Optional[int] = None
     is_correct_result: Optional[bool] = None
     is_exact_score: Optional[bool] = None

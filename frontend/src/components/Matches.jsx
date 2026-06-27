@@ -32,8 +32,6 @@ export default function Matches() {
   const groupMatches = matches.filter(m => m.stage === 'group');
   const knockoutMatches = matches.filter(m => m.stage !== 'group');
 
-  const filteredMatches = activeTab === 'grupos' ? groupMatches : knockoutMatches;
-
   // Helper to group by group name
   const matchesByGroup = groupMatches.reduce((acc, m) => {
     const group = getTranslatedStage(m.stage, m.group_name) || 'Sin Grupo';

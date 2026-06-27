@@ -1,4 +1,3 @@
-import React from 'react';
 import copaLogo from '../assets/copa.png';
 
 const KnockoutBracket = ({ matches }) => {

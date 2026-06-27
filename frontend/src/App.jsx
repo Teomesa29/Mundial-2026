@@ -12,7 +12,6 @@ import Login from './components/Login';
 import BracketPredictor from './components/BracketPredictor';
 import LoadingScreen from './components/LoadingScreen';
 import { api } from './utils/api';
-import logo from './assets/copa.png';
 
 import './App.css';
 
@@ -23,6 +22,7 @@ function App() {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [appConfig, setAppConfig] = useState(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -33,8 +33,12 @@ function App() {
       }
 
       try {
-        const user = await api.get('/users/me');
+        const [user, conf] = await Promise.all([
+          api.get('/users/me'),
+          api.get('/matches/config')
+        ]);
         setUserRole(user.role);
+        setAppConfig(conf);
         setIsAuthenticated(true);
         if (user.role === 'admin') {
           setIsAdminMode(true);
@@ -49,7 +53,7 @@ function App() {
           }
         });
 
-      } catch (err) {
+      } catch {
         localStorage.removeItem('token');
         setIsAuthenticated(false);
       } finally {
@@ -94,12 +98,8 @@ function App() {
     }
   };
 
-  const TrophyLoading = ({ text = "" }) => (
-    <LoadingScreen text={text} isFixed={true} />
-  );
-
   if (loading) {
-    return <TrophyLoading text="" />;
+    return <LoadingScreen text="" isFixed={true} />;
   }
 
   if (!isAuthenticated) {
@@ -113,6 +113,7 @@ function App() {
         navigateTo={navigateTo}
         isAdminMode={isAdminMode}
         userRole={userRole}
+        config={appConfig}
       />
 
       <main className="main-content" id="main">

@@ -78,14 +78,6 @@ export default function Leaderboard() {
   const handleUserClick = async (userId, displayName) => {
     setSelectedUserForPredictions({ id: userId, display_name: displayName });
     
-    // Check cache first
-    if (predictionsCache[userId]) {
-      setUserPredictions(predictionsCache[userId]);
-      setPredictionsError(null);
-      setLoadingUserPredictions(false);
-      return;
-    }
-
     setLoadingUserPredictions(true);
     setPredictionsError(null);
     try {
@@ -96,17 +88,15 @@ export default function Leaderboard() {
         return dateA - dateB;
       });
       setUserPredictions(sortedData);
-      setPredictionsCache(prev => ({ ...prev, [userId]: sortedData }));
     } catch (err) {
       console.error('Error fetching user predictions:', err);
-      setPredictionsError('No se pudieron cargar las predicciones.');
+      setPredictionsError(err.message || 'No se pudieron cargar las predicciones');
     } finally {
       setLoadingUserPredictions(false);
     }
   };
 
   const handleUserMouseEnter = (userId) => {
-    if (predictionsCache[userId]) return;
     
     if (prefetchTimeoutRef.current[userId]) {
       clearTimeout(prefetchTimeoutRef.current[userId]);
@@ -590,8 +580,12 @@ export default function Leaderboard() {
                         <div className="prediction-scores-comparison">
                           <div className="pred-score-block">
                             <span className="pred-score-label">Predicho</span>
-                            <span className="pred-score-value">
-                              {pred.predicted_home_score} - {pred.predicted_away_score}
+                            <span className="pred-score-value" style={{ fontSize: pred.predicted_home_score === null ? '0.85rem' : 'inherit' }}>
+                              {pred.predicted_home_score !== null && pred.predicted_home_score !== undefined ? (
+                                `${pred.predicted_home_score} - ${pred.predicted_away_score}`
+                              ) : (
+                                "No visible"
+                              )}
                             </span>
                           </div>
                           

@@ -877,8 +877,9 @@ h1, h2, h3, h4, .display-text {
   }
 }
 
-@media (max-width: 1024px) {
-  .leaderboard-layout {
-    grid-template-columns: 1fr;
+@media (max-width: 768px) {
+  .pts-cell {
+    font-size: 1.6rem;
+    color: var(--gold-dark);
   }
 }
