@@ -645,7 +645,6 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
           <span>MODO DE EMERGENCIA: Estás modificando las llaves de otro usuario. Por favor, asegúrate de que sea necesario.</span>
         </div>
       )}
-      <div className="bracket-header-nav">
       {/* Notifications Portal */}
       <div className="notification-container">
         {notifications.map(n => (
