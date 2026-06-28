@@ -586,7 +586,7 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
 
   if (loading) return <LoadingScreen text="CARGANDO LLAVES..." />;
 
-  if (!bracketReady?.is_ready && !config?.is_bracket_open) {
+  if (!adminUserId && !bracketReady?.is_ready && !config?.is_bracket_open) {
     return (
       <div className="view" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center', minHeight: '60vh' }}>
         <div style={{
