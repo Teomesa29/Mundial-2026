@@ -3,7 +3,7 @@ import { api } from '../utils/api';
 import { getTranslatedName } from '../utils/translations';
 import LoadingScreen from './LoadingScreen';
 
-export default function Dashboard({ navigateTo }) {
+export default function Dashboard({ navigateTo, config }) {
   const tiltRefs = useRef([]);
   const [topLeaders, setTopLeaders] = useState([]);
   const [liveMatches, setLiveMatches] = useState([]);
@@ -13,6 +13,14 @@ export default function Dashboard({ navigateTo }) {
 
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [pollInterval, setPollInterval] = useState(null);
+
+  const handlePredictionsClick = () => {
+    if (config?.is_bracket_open) {
+      navigateTo('bracket');
+    } else {
+      navigateTo('predictions');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -140,7 +148,7 @@ export default function Dashboard({ navigateTo }) {
           <div className="hero-subtitle">Próxima parada: Norteamérica</div>
           <h1 className="hero-title">POLLA <span>MUNDIALISTA</span></h1>
           <div className="hero-actions">
-            <button className="btn-primary" onClick={() => navigateTo('predictions')}>
+            <button className="btn-primary" onClick={handlePredictionsClick}>
               Ingresar Predicciones <i className="ri-arrow-right-line"></i>
             </button>
             <button className="btn-secondary" onClick={() => navigateTo('leaderboard')}>
@@ -267,7 +275,7 @@ export default function Dashboard({ navigateTo }) {
               }) && <span className="badge-urgency">¡Juega Hoy!</span>}
             </div>
             {upcomingMatches.length > 0 ? upcomingMatches.slice(0, 3).map(m => (
-              <div key={m.id} className="match-card-mini mc-dashboard tilt-card" ref={addToRefs} onClick={() => navigateTo('predictions')}>
+              <div key={m.id} className="match-card-mini mc-dashboard tilt-card" ref={addToRefs} onClick={handlePredictionsClick}>
                 <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
                     <img src={m.home_team?.logo_url || `https://flagcdn.com/w40/${m.home_team?.country_code?.toLowerCase()}.png`} className="team-flag-mini" alt="" />

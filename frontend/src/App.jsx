@@ -131,7 +131,7 @@ function App() {
             navigateTo={navigateTo}
           />
 
-          {currentView === 'dashboard' && <Dashboard navigateTo={navigateTo} />}
+          {currentView === 'dashboard' && <Dashboard navigateTo={navigateTo} config={appConfig} />}
           {currentView === 'matches' && <Matches />}
           {currentView === 'predictions' && <Predictions userRole={userRole} navigateTo={navigateTo} />}
           {currentView === 'bracket' && <BracketPredictor navigateTo={navigateTo} userRole={userRole} />}
