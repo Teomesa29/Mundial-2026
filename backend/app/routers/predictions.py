@@ -349,30 +349,21 @@ async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_da
     # Create a lookup map of match_id to Match object
     match_map = {m.id: m for m in knockout_matches}
     
-    # 2. Group by stage
-    from collections import defaultdict
-    grouped = defaultdict(list)
-    for m in knockout_matches:
-        grouped[m.stage].append(m)
-        
-    # 3. Define STAGE_TO_BRACKET_IDS
-    STAGE_TO_BRACKET_IDS = {
-        MatchStage.round_of_32: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-        MatchStage.round_of_16: [17, 18, 19, 20, 21, 22, 23, 24],
-        MatchStage.quarterfinal: [25, 26, 27, 28],
-        MatchStage.semifinal: [29, 30],
-        MatchStage.final: [31],
-        MatchStage.third_place: [32]
+    # Map bracket_id to match_id using the explicit match numbers
+    MATCH_NUM_TO_BRACKET_ID = {
+        75: 1, 78: 2, 73: 3, 76: 4, 84: 5, 83: 6, 81: 7, 82: 8,
+        74: 9, 77: 10, 79: 11, 80: 12, 87: 13, 86: 14, 88: 15, 85: 16,
+        89: 17, 90: 18, 93: 19, 94: 20, 91: 21, 92: 22, 95: 23, 96: 24,
+        97: 25, 98: 26, 99: 27, 100: 28,
+        101: 29, 102: 30,
+        104: 31, 103: 32
     }
     
-    # Map bracket_id to match_id
     bracket_to_match_id = {}
-    for stage, ids in STAGE_TO_BRACKET_IDS.items():
-        stage_matches = grouped.get(stage, [])
-        sorted_matches = sorted(stage_matches, key=lambda m: (m.match_number or 0, m.id))
-        for idx, match in enumerate(sorted_matches):
-            if idx < len(ids):
-                bracket_to_match_id[ids[idx]] = match.id
+    for match in knockout_matches:
+        if match.match_number in MATCH_NUM_TO_BRACKET_ID:
+            b_id = MATCH_NUM_TO_BRACKET_ID[match.match_number]
+            bracket_to_match_id[b_id] = match.id
                 
     now = datetime.now(timezone.utc)
     
@@ -464,28 +455,21 @@ async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = D
         k_matches = match_q.scalars().all()
         k_match_map = {m.id: m for m in k_matches}
         
-        # We need mapping from bracket_id to match_id
-        from collections import defaultdict
-        grouped = defaultdict(list)
-        for m in k_matches:
-            grouped[m.stage].append(m)
-            
-        STAGE_TO_BRACKET_IDS = {
-            MatchStage.round_of_32: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-            MatchStage.round_of_16: [17, 18, 19, 20, 21, 22, 23, 24],
-            MatchStage.quarterfinal: [25, 26, 27, 28],
-            MatchStage.semifinal: [29, 30],
-            MatchStage.final: [31],
-            MatchStage.third_place: [32]
+        # Map bracket_id to match_id using the explicit match numbers
+        MATCH_NUM_TO_BRACKET_ID = {
+            75: 1, 78: 2, 73: 3, 76: 4, 84: 5, 83: 6, 81: 7, 82: 8,
+            74: 9, 77: 10, 79: 11, 80: 12, 87: 13, 86: 14, 88: 15, 85: 16,
+            89: 17, 90: 18, 93: 19, 94: 20, 91: 21, 92: 22, 95: 23, 96: 24,
+            97: 25, 98: 26, 99: 27, 100: 28,
+            101: 29, 102: 30,
+            104: 31, 103: 32
         }
         
         bracket_to_match_id = {}
-        for stage, ids in STAGE_TO_BRACKET_IDS.items():
-            stage_matches = grouped.get(stage, [])
-            sorted_matches = sorted(stage_matches, key=lambda m: (m.match_number or 0, m.id))
-            for idx, match in enumerate(sorted_matches):
-                if idx < len(ids):
-                    bracket_to_match_id[ids[idx]] = match.id
+        for match in k_matches:
+            if match.match_number in MATCH_NUM_TO_BRACKET_ID:
+                b_id = MATCH_NUM_TO_BRACKET_ID[match.match_number]
+                bracket_to_match_id[b_id] = match.id
                     
         # Filter new bracket data: if a match is locked and not admin, preserve old value
         is_admin = (current_user.role.value == "admin")
