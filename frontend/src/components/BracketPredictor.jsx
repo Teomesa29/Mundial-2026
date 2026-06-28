@@ -1168,7 +1168,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
           </div>
           <button
             className="btn btn-primary"
-            onClick={handleSave}
+            onClick={() => handleSave(false)}
             disabled={saving}
             style={{
               padding: '0.8rem 2.5rem',
