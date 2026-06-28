@@ -15,7 +15,7 @@ export default function Dashboard({ navigateTo, config }) {
   const [pollInterval, setPollInterval] = useState(null);
 
   const handlePredictionsClick = () => {
-    if (config?.is_bracket_open) {
+    if (config?.is_bracket_open || !config?.is_registration_open) {
       navigateTo('bracket');
     } else {
       navigateTo('predictions');
@@ -39,8 +39,8 @@ export default function Dashboard({ navigateTo, config }) {
 
         // Calculate user summary
         const completedPreds = myPreds?.length || 0;
-        const myRankIndex = fullLeaderboard.findIndex(u => u.id === me.id);
-        const myRank = myRankIndex !== -1 ? `#${myRankIndex + 1}` : 'Sin clasificar';
+        const myRankUser = fullLeaderboard.find(u => u.user_id === me.id);
+        const myRank = myRankUser ? `#${myRankUser.posicion}` : 'Sin clasificar';
 
         setUserSummary({
           points: me.total_points || 0,
