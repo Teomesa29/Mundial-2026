@@ -23,6 +23,20 @@ const STAGE_TO_BRACKET_IDS = {
 };
 
 
+const MATCH_NUM_TO_BRACKET_ID = {
+  // Round of 32
+  75: 1, 78: 2, 73: 3, 76: 4, 84: 5, 83: 6, 81: 7, 82: 8,
+  74: 9, 77: 10, 79: 11, 80: 12, 87: 13, 86: 14, 88: 15, 85: 16,
+  // Round of 16
+  89: 17, 90: 18, 93: 19, 94: 20, 91: 21, 92: 22, 95: 23, 96: 24,
+  // Quarterfinals
+  97: 25, 98: 26, 99: 27, 100: 28,
+  // Semifinals
+  101: 29, 102: 30,
+  // Final & Third Place
+  104: 31, 103: 32
+};
+
 let notificationCounter = 0;
 
 export default function BracketPredictor({ navigateTo, userRole }) {
@@ -120,31 +134,19 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         }
 
         const knockoutMatches = matchesData.filter(m => m.stage !== 'group');
-        const groupedMatches = knockoutMatches.reduce((acc, m) => {
-          if (!acc[m.stage]) acc[m.stage] = [];
-          acc[m.stage].push(m);
-          return acc;
-        }, {});
-
-        Object.keys(STAGE_TO_BRACKET_IDS).forEach(stage => {
-          const stageMatches = groupedMatches[stage] || [];
-          const sortedMatches = [...stageMatches].sort((a, b) => (a.match_number || a.id) - (b.match_number || b.id));
-
-          const ids = STAGE_TO_BRACKET_IDS[stage];
-          sortedMatches.forEach((match, idx) => {
-            if (idx < ids.length) {
-              const bracketId = ids[idx];
-              newState[bracketId].match_id = match.id;
-              newState[bracketId].is_finished = match.status === 'finished' || match.status === 'FINISHED';
-              newState[bracketId].real_home = match.home_score;
-              newState[bracketId].real_away = match.away_score;
-              newState[bracketId].real_home_penalties = match.home_score_penalties;
-              newState[bracketId].real_away_penalties = match.away_score_penalties;
-              newState[bracketId].match_date = match.match_date;
-              newState[bracketId].home = match.home_team;
-              newState[bracketId].away = match.away_team;
-            }
-          });
+        knockoutMatches.forEach(match => {
+          const bracketId = MATCH_NUM_TO_BRACKET_ID[match.match_number];
+          if (bracketId && newState[bracketId]) {
+            newState[bracketId].match_id = match.id;
+            newState[bracketId].is_finished = match.status === 'finished' || match.status === 'FINISHED';
+            newState[bracketId].real_home = match.home_score;
+            newState[bracketId].real_away = match.away_score;
+            newState[bracketId].real_home_penalties = match.home_score_penalties;
+            newState[bracketId].real_away_penalties = match.away_score_penalties;
+            newState[bracketId].match_date = match.match_date;
+            newState[bracketId].home = match.home_team;
+            newState[bracketId].away = match.away_team;
+          }
         });
 
         const savedData = bracketResponse?.bracket_data || {};
@@ -338,7 +340,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
 
     const matchDate = matchData.match_date ? new Date(matchData.match_date) : null;
     const formattedDate = matchDate && !isNaN(matchDate.getTime())
-      ? matchDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      ? `${matchDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} ${matchDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
       : null;
     const showDate = matchDef.id <= 16 && formattedDate;
 
