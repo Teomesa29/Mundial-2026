@@ -25,12 +25,13 @@ export default function Dashboard({ navigateTo, config }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [leaders, live, upcoming, me, myPreds] = await Promise.all([
+        const [leaders, live, upcoming, me, myPreds, fullLeaderboard] = await Promise.all([
           api.get('/leaderboard/top/3'),
           api.get('/matches/live'),
           api.get('/matches/upcoming'),
           api.get('/users/me'),
-          api.get('/predictions/my')
+          api.get('/predictions/my'),
+          api.get('/leaderboard/')
         ]);
         setTopLeaders(leaders);
         setLiveMatches(live);
@@ -38,10 +39,13 @@ export default function Dashboard({ navigateTo, config }) {
 
         // Calculate user summary
         const completedPreds = myPreds?.length || 0;
+        const myRankIndex = fullLeaderboard.findIndex(u => u.id === me.id);
+        const myRank = myRankIndex !== -1 ? `#${myRankIndex + 1}` : 'Sin clasificar';
+
         setUserSummary({
           points: me.total_points || 0,
           predictionsCount: completedPreds,
-          rank: 'Participante' // Could be dynamic
+          rank: myRank
         });
 
         // Determine dynamic poll interval to avoid keeping Neon DB awake unnecessarily
@@ -190,6 +194,10 @@ export default function Dashboard({ navigateTo, config }) {
                 <div className="summary-stat">
                   <div className="summary-stat-value">{userSummary?.predictionsCount || 0}</div>
                   <div className="summary-stat-label">PREDICCIONES</div>
+                </div>
+                <div className="summary-stat">
+                  <div className="summary-stat-value" style={{ color: 'var(--gold)' }}>{userSummary?.rank || '-'}</div>
+                  <div className="summary-stat-label">TU POSICIÓN</div>
                 </div>
               </div>
             </div>

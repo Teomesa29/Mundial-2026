@@ -1004,6 +1004,23 @@ export default function BracketPredictor({ navigateTo, userRole }) {
           background: rgba(201, 168, 76, 0.35);
           pointer-events: none;
         }
+        /* Save Button Animation */
+        .btn-saving-anim {
+          transform: scale(0.98);
+          opacity: 0.9;
+        }
+        .btn-glow-overlay {
+          position: absolute;
+          top: 0; left: -100%;
+          width: 50%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+          animation: sweep 1.5s infinite;
+          z-index: 1;
+        }
+        @keyframes sweep {
+          0% { left: -100%; }
+          100% { left: 200%; }
+        }
       `}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -1167,23 +1184,27 @@ export default function BracketPredictor({ navigateTo, userRole }) {
             </div>
           </div>
           <button
-            className="btn btn-primary"
+            className={`btn btn-primary ${saving ? 'btn-saving-anim' : ''}`}
             onClick={() => handleSave(false)}
             disabled={saving}
             style={{
               padding: '0.8rem 2.5rem',
               fontSize: '1.1rem',
               fontWeight: 'bold',
-              boxShadow: '0 4px 15px rgba(201, 168, 76, 0.3)',
-              borderRadius: '12px'
+              boxShadow: saving ? '0 0 20px rgba(201, 168, 76, 0.8)' : '0 4px 15px rgba(201, 168, 76, 0.3)',
+              borderRadius: '12px',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden'
             }}
           >
+            {saving && <div className="btn-glow-overlay"></div>}
             {saving ? (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <i className="ri-loader-4-line rotate"></i> Guardando...
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative', zIndex: 2 }}>
+                <i className="ri-loader-4-line rotate" style={{ fontSize: '1.2rem' }}></i> Guardando...
               </span>
             ) : (
-              'Guardar Pronósticos'
+              <span style={{ position: 'relative', zIndex: 2 }}>Guardar Pronósticos</span>
             )}
           </button>
         </div>

@@ -63,6 +63,12 @@ function App() {
     checkAuth();
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated && !appConfig) {
+      api.get('/matches/config').then(conf => setAppConfig(conf)).catch(console.error);
+    }
+  }, [isAuthenticated, appConfig]);
+
   const handleLogin = (role, token) => {
     if (token) localStorage.setItem('token', token);
     setUserRole(role);
