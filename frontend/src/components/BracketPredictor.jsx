@@ -39,7 +39,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 4000);
   };
-  
+
   const [bracketState, setBracketState] = useState({});
   const [config, setConfig] = useState(null);
   const [bracketReady, setBracketReady] = useState({ is_ready: false });
@@ -47,28 +47,28 @@ export default function BracketPredictor({ navigateTo, userRole }) {
   useEffect(() => {
     const calculatePoints = (predHome, predAway, realHome, realAway, predWinnerId, homeTeamId, awayTeamId, realHomePen, realAwayPen) => {
       if (predHome === '' || predAway === '' || realHome == null || realAway == null) return 0;
-      
+
       const isExact = (predHome === realHome && predAway === realAway);
-      
+
       const realWinner = realHome > realAway ? 'home' : realAway > realHome ? 'away' : 'draw';
       const predWinner = predHome > predAway ? 'home' : predAway > predHome ? 'away' : 'draw';
       const isCorrectResult = (realWinner === predWinner);
-      
+
       let points = 0;
       const realIsDraw = (realHome === realAway);
       const predIsDraw = (predHome === predAway);
-      
+
       if (realIsDraw) {
         let realWinnerId = null;
         if (realHomePen != null && realAwayPen != null) {
           realWinnerId = realHomePen > realAwayPen ? homeTeamId : awayTeamId;
         }
-        
+
         let userWinnerId;
         if (predHome > predAway) userWinnerId = homeTeamId;
         else if (predAway > predHome) userWinnerId = awayTeamId;
         else userWinnerId = predWinnerId;
-        
+
         if (isExact) {
           points = 5;
         } else {
@@ -85,7 +85,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
           points = 3;
         }
       }
-      
+
       return points;
     };
 
@@ -129,7 +129,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         Object.keys(STAGE_TO_BRACKET_IDS).forEach(stage => {
           const stageMatches = groupedMatches[stage] || [];
           const sortedMatches = [...stageMatches].sort((a, b) => (a.match_number || a.id) - (b.match_number || b.id));
-          
+
           const ids = STAGE_TO_BRACKET_IDS[stage];
           sortedMatches.forEach((match, idx) => {
             if (idx < ids.length) {
@@ -214,7 +214,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         ...prev[matchId],
         [team]: value === '' ? '' : parseInt(value)
       };
-      
+
       if (updatedMatch.predicted_home !== '' && updatedMatch.predicted_away !== '') {
         if (updatedMatch.predicted_home > updatedMatch.predicted_away) {
           updatedMatch.predicted_winner_id = updatedMatch.home?.id;
@@ -228,12 +228,12 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       } else {
         updatedMatch.predicted_winner_id = null;
       }
-      
+
       const tempState = {
         ...prev,
         [matchId]: updatedMatch
       };
-      
+
       return tempState;
     });
   };
@@ -246,17 +246,17 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       const match = prev[matchId];
       if (match.predicted_home === '' || match.predicted_away === '') return prev;
       if (match.predicted_home !== match.predicted_away) return prev;
-      
+
       const updatedMatch = {
         ...match,
         predicted_winner_id: teamId
       };
-      
+
       const tempState = {
         ...prev,
         [matchId]: updatedMatch
       };
-      
+
       return tempState;
     });
   };
@@ -267,7 +267,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       setError(null);
       setSuccess(null);
     }
-    
+
     try {
       const minifiedData = {};
       Object.entries(bracketState).forEach(([id, match]) => {
@@ -300,7 +300,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       initialLoadRef.current = false;
       return;
     }
-    
+
     if (isLocked) return;
 
     if (saveTimeoutRef.current) {
@@ -314,7 +314,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bracketState]);
 
   const getFlagUrl = (team) => {
@@ -333,11 +333,11 @@ export default function BracketPredictor({ navigateTo, userRole }) {
     const realAway = matchData.real_away;
     const realHomePen = matchData.real_home_penalties;
     const realAwayPen = matchData.real_away_penalties;
-    
+
     const isM_Locked = isMatchLocked(matchData);
-    
+
     const matchDate = matchData.match_date ? new Date(matchData.match_date) : null;
-    const formattedDate = matchDate && !isNaN(matchDate.getTime()) 
+    const formattedDate = matchDate && !isNaN(matchDate.getTime())
       ? matchDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
       : null;
     const showDate = matchDef.id <= 16 && formattedDate;
@@ -376,13 +376,13 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       if (isRightSide) {
         const isWinner = team && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away && matchData.predicted_winner_id === team.id;
         const isCursorPointer = team && !isDisabled && !isLocked && !isM_Locked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
-        
+
         return (
-          <div 
-            className={`bm-team ${isWinner ? 'winner' : ''}`} 
+          <div
+            className={`bm-team ${isWinner ? 'winner' : ''}`}
             onClick={() => team && !isM_Locked && handleSelectWinner(matchDef.id, team.id)}
-            style={{ 
-              ...rowStyle, 
+            style={{
+              ...rowStyle,
               cursor: isCursorPointer ? 'pointer' : 'default',
               background: isWinner ? 'rgba(201, 168, 76, 0.05)' : 'none'
             }}
@@ -405,8 +405,8 @@ export default function BracketPredictor({ navigateTo, userRole }) {
                   {scoreValue !== '' ? scoreValue : '-'}
                 </div>
               ) : (
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   className="bm-score-input"
@@ -425,21 +425,21 @@ export default function BracketPredictor({ navigateTo, userRole }) {
             ) : (
               <div style={{ width: '38px', height: '26px', marginRight: 'auto' }}></div>
             )}
-            
+
             {isWinner && (
               <i className="ri-vip-crown-fill" style={{ color: '#D4AF37', marginRight: '0.4rem', fontSize: '0.9rem' }} title="Ganador de penales elegido"></i>
             )}
-            
-            <span className="bm-name" style={{ 
-              fontSize: '0.88rem', 
-              fontWeight: isWinner ? 800 : 700, 
-              color: team ? (isWinner ? 'var(--gold-dark)' : '#111') : '#888', 
-              whiteSpace: 'nowrap', 
-              overflow: 'hidden', 
-              textOverflow: 'ellipsis', 
-              flex: 1, 
-              textAlign: 'right', 
-              marginRight: '0.8rem' 
+
+            <span className="bm-name" style={{
+              fontSize: '0.88rem',
+              fontWeight: isWinner ? 800 : 700,
+              color: team ? (isWinner ? 'var(--gold-dark)' : '#111') : '#888',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              flex: 1,
+              textAlign: 'right',
+              marginRight: '0.8rem'
             }}>
               {team ? getTranslatedName(team.name) : 'TBD'}
             </span>
@@ -453,11 +453,11 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         const isCursorPointer = team && !isDisabled && !isLocked && !isM_Locked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
 
         return (
-          <div 
-            className={`bm-team ${isWinner ? 'winner' : ''}`} 
+          <div
+            className={`bm-team ${isWinner ? 'winner' : ''}`}
             onClick={() => team && !isM_Locked && handleSelectWinner(matchDef.id, team.id)}
-            style={{ 
-              ...rowStyle, 
+            style={{
+              ...rowStyle,
               cursor: isCursorPointer ? 'pointer' : 'default',
               background: isWinner ? 'rgba(201, 168, 76, 0.05)' : 'none'
             }}
@@ -465,19 +465,19 @@ export default function BracketPredictor({ navigateTo, userRole }) {
             <div className="bm-flag" style={{ width: '24px', height: '24px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, marginRight: '0.8rem', border: '1px solid rgba(0,0,0,0.08)' }}>
               <img src={getFlagUrl(team)} alt={team?.name || 'TBD'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
-            
-            <span className="bm-name" style={{ 
-              fontSize: '0.88rem', 
-              fontWeight: isWinner ? 800 : 700, 
-              color: team ? (isWinner ? 'var(--gold-dark)' : '#111') : '#888', 
-              whiteSpace: 'nowrap', 
-              overflow: 'hidden', 
-              textOverflow: 'ellipsis', 
-              flex: 1 
+
+            <span className="bm-name" style={{
+              fontSize: '0.88rem',
+              fontWeight: isWinner ? 800 : 700,
+              color: team ? (isWinner ? 'var(--gold-dark)' : '#111') : '#888',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              flex: 1
             }}>
               {team ? getTranslatedName(team.name) : 'TBD'}
             </span>
-            
+
             {isWinner && (
               <i className="ri-vip-crown-fill" style={{ color: '#D4AF37', marginLeft: '0.4rem', fontSize: '0.9rem' }} title="Ganador de penales elegido"></i>
             )}
@@ -500,8 +500,8 @@ export default function BracketPredictor({ navigateTo, userRole }) {
                   {scoreValue !== '' ? scoreValue : '-'}
                 </div>
               ) : (
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   className="bm-score-input"
@@ -526,24 +526,24 @@ export default function BracketPredictor({ navigateTo, userRole }) {
     return (
       <div className={`bracket-match-card ${statusClass}`} key={matchDef.id} style={{ display: 'flex', flexDirection: 'column' }}>
         {showDate && (
-          <div style={{ 
-            fontSize: '0.65rem', 
-            textAlign: 'center', 
-            background: 'rgba(0,0,0,0.04)', 
-            padding: '3px 0', 
-            borderTopLeftRadius: '14px', 
-            borderTopRightRadius: '14px', 
-            color: 'var(--text-gray)', 
-            fontWeight: 800, 
-            textTransform: 'uppercase', 
-            letterSpacing: '0.5px' 
+          <div style={{
+            fontSize: '0.65rem',
+            textAlign: 'center',
+            background: 'rgba(0,0,0,0.04)',
+            padding: '3px 0',
+            borderTopLeftRadius: '14px',
+            borderTopRightRadius: '14px',
+            color: 'var(--text-gray)',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
           }}>
             {formattedDate}
           </div>
         )}
         {renderTeamRow(homeTeam, true)}
         {renderTeamRow(awayTeam, false)}
-        
+
         {isFinished && (
           <div className="match-card-footer" style={{
             display: 'flex',
@@ -630,9 +630,9 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         {notifications.map(n => (
           <div key={n.id} className={`notification ${n.type}`}>
             <div className="notification-icon">
-              {n.type === 'success' ? <i className="ri-checkbox-circle-fill" style={{color: 'var(--green)'}}></i> : 
-               n.type === 'error' ? <i className="ri-error-warning-fill" style={{color: 'var(--red)'}}></i> :
-               <i className="ri-time-fill" style={{color: 'var(--gold)'}}></i>}
+              {n.type === 'success' ? <i className="ri-checkbox-circle-fill" style={{ color: 'var(--green)' }}></i> :
+                n.type === 'error' ? <i className="ri-error-warning-fill" style={{ color: 'var(--red)' }}></i> :
+                  <i className="ri-time-fill" style={{ color: 'var(--gold)' }}></i>}
             </div>
             <div className="notification-content">
               <span className="notification-title">{n.title}</span>
@@ -1041,12 +1041,12 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       {success && <div className="toast toast-success">{success}</div>}
 
       {isLocked && (
-        <div className="alert-banner" style={{ 
-          background: 'rgba(255, 107, 107, 0.1)', 
-          border: '2px solid var(--red)', 
-          color: 'var(--red)', 
-          padding: '1.5rem', 
-          borderRadius: '20px', 
+        <div className="alert-banner" style={{
+          background: 'rgba(255, 107, 107, 0.1)',
+          border: '2px solid var(--red)',
+          color: 'var(--red)',
+          padding: '1.5rem',
+          borderRadius: '20px',
           marginBottom: '2.5rem',
           display: 'flex',
           alignItems: 'center',
@@ -1089,7 +1089,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
           <div className="bracket-center">
             <div className="final-stage" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', position: 'relative' }}>
               <h3 className="column-label" style={{ textAlign: 'center', color: 'var(--gold)', marginBottom: '1.5rem', fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', textShadow: '0 0 10px rgba(201,168,76,0.3)' }}>GRAN FINAL</h3>
-              
+
               <div className="trophy-display-premium" style={{ position: 'relative', width: '180px', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
                 {/* Golden Radial Glow */}
                 <div style={{
@@ -1101,7 +1101,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
                   animation: 'pulse 2s infinite alternate',
                   zIndex: 1
                 }}></div>
-                
+
                 {/* Rotating Conic Rays */}
                 <div className="rays-mini" style={{
                   position: 'absolute',
@@ -1113,18 +1113,18 @@ export default function BracketPredictor({ navigateTo, userRole }) {
                   zIndex: 2,
                   pointerEvents: 'none'
                 }}></div>
-                
-                <img 
-                  src={copaLogo} 
-                  style={{ 
-                    width: '100px', 
-                    height: 'auto', 
-                    filter: 'drop-shadow(0 0 20px rgba(201, 168, 76, 0.6))', 
+
+                <img
+                  src={copaLogo}
+                  style={{
+                    width: '100px',
+                    height: 'auto',
+                    filter: 'drop-shadow(0 0 20px rgba(201, 168, 76, 0.6))',
                     animation: 'float 3s ease-in-out infinite',
                     zIndex: 3,
                     position: 'relative'
-                  }} 
-                  alt="Copa del Mundo" 
+                  }}
+                  alt="Copa del Mundo"
                 />
               </div>
               {renderMatch(BRACKET_STRUCTURE.final[0], false)}
@@ -1164,9 +1164,9 @@ export default function BracketPredictor({ navigateTo, userRole }) {
               <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', fontWeight: 500 }}>Recuerda guardar tus resultados de la fase final antes de salir.</span>
             </div>
           </div>
-          <button 
-            className="btn btn-primary" 
-            onClick={handleSave} 
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
             disabled={saving}
             style={{
               padding: '0.8rem 2.5rem',

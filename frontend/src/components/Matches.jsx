@@ -42,22 +42,22 @@ export default function Matches() {
 
   return (
     <div className="view">
-      <h1 className="display-text" style={{fontSize: 'clamp(2.5rem, 8vw, 4rem)', marginBottom: '2rem'}}>Partidos</h1>
-      
+      <h1 className="display-text" style={{ fontSize: 'clamp(2.5rem, 8vw, 4rem)', marginBottom: '2rem' }}>Partidos</h1>
+
       <div className="filters">
         <button className={`filter-btn ${activeTab === 'grupos' ? 'active' : ''}`} onClick={() => setActiveTab('grupos')}>Fase de Grupos</button>
         <button className={`filter-btn ${activeTab === 'eliminatorias' ? 'active' : ''}`} onClick={() => setActiveTab('eliminatorias')}>Eliminatorias</button>
       </div>
 
       {loading ? (
-        <div className="loading-state" style={{padding: '3rem', textAlign: 'center'}}>Cargando partidos...</div>
+        <div className="loading-state" style={{ padding: '3rem', textAlign: 'center' }}>Cargando partidos...</div>
       ) : error ? (
-        <div className="error-state" style={{padding: '3rem', textAlign: 'center', color: 'var(--red)'}}>{error}</div>
+        <div className="error-state" style={{ padding: '3rem', textAlign: 'center', color: 'var(--red)' }}>{error}</div>
       ) : (
         <div className="matches-grid">
           {activeTab === 'grupos' ? (
             Object.keys(matchesByGroup).length === 0 ? (
-              <div className="empty-state" style={{padding: '3rem', textAlign: 'center', color: 'var(--text-gray)'}}>No hay partidos de grupos programados.</div>
+              <div className="empty-state" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-gray)' }}>No hay partidos de grupos programados.</div>
             ) : (
               Object.entries(matchesByGroup)
                 .sort((a, b) => {
@@ -69,82 +69,82 @@ export default function Matches() {
                   return (priority[a[0]] || 99) - (priority[b[0]] || 99);
                 })
                 .map(([groupName, groupMatches]) => (
-                <div className="group-section" key={groupName}>
-                  <h2 className="group-title">{groupName}</h2>
-                  <div className="matches-list">
-                    {[...groupMatches]
-                      .sort((a, b) => {
-                        const dateA = new Date(a.match_date || a.utc_date).getTime();
-                        const dateB = new Date(b.match_date || b.utc_date).getTime();
-                        return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
-                      })
-                      .map(m => (
-                      <div key={m.id} className="match-card-modern tilt-card">
-                        <div className="match-card-header">
-                          <span className="match-date">
-                            {(() => {
-                              const d = new Date(m.match_date || m.utc_date);
-                              return isNaN(d.getTime()) ? 'Fecha por definir' : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-                            })()}
-                          </span>
-                          {m.status === 'live' || m.status === 'IN_PLAY' || m.status === 'PAUSED' ? (
-                            <span className="live-tag pulse">En vivo</span>
-                          ) : (
-                            <span className={`status-tag ${m.status}`}>
-                              {m.status === 'scheduled' || m.status === 'TIMED' || m.status === 'SCHEDULED' ? 'Pendiente' : 
-                               m.status === 'finished' || m.status === 'FINISHED' ? 'Finalizado' : m.status}
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="match-main">
-                          <div className="m-team home">
-                            <div className="bm-flag">
-                              <img 
-                                src={m.home_team?.logo_url || (m.home_team?.country_code ? `https://flagcdn.com/w80/${m.home_team.country_code.toLowerCase()}.png` : '')} 
-                                alt={m.home_team?.name}
-                                onError={(e) => { e.target.src = 'https://flagcdn.com/w80/un.png'; }}
-                              />
+                  <div className="group-section" key={groupName}>
+                    <h2 className="group-title">{groupName}</h2>
+                    <div className="matches-list">
+                      {[...groupMatches]
+                        .sort((a, b) => {
+                          const dateA = new Date(a.match_date || a.utc_date).getTime();
+                          const dateB = new Date(b.match_date || b.utc_date).getTime();
+                          return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
+                        })
+                        .map(m => (
+                          <div key={m.id} className="match-card-modern tilt-card">
+                            <div className="match-card-header">
+                              <span className="match-date">
+                                {(() => {
+                                  const d = new Date(m.match_date || m.utc_date);
+                                  return isNaN(d.getTime()) ? 'Fecha por definir' : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                                })()}
+                              </span>
+                              {m.status === 'live' || m.status === 'IN_PLAY' || m.status === 'PAUSED' ? (
+                                <span className="live-tag pulse">En vivo</span>
+                              ) : (
+                                <span className={`status-tag ${m.status}`}>
+                                  {m.status === 'scheduled' || m.status === 'TIMED' || m.status === 'SCHEDULED' ? 'Pendiente' :
+                                    m.status === 'finished' || m.status === 'FINISHED' ? 'Finalizado' : m.status}
+                                </span>
+                              )}
                             </div>
-                            <span className="team-name">{getTranslatedName(m.home_team?.name)}</span>
-                          </div>
-                          
-                          <div className="m-score-area">
-                            {m.status === 'scheduled' ? (
-                              <span className="vs-label">VS</span>
-                            ) : (
-                              <div className="score-display">
-                                <span>{m.home_score}</span>
-                                <span className="score-sep">-</span>
-                                <span>{m.away_score}</span>
+
+                            <div className="match-main">
+                              <div className="m-team home">
+                                <div className="bm-flag">
+                                  <img
+                                    src={m.home_team?.logo_url || (m.home_team?.country_code ? `https://flagcdn.com/w80/${m.home_team.country_code.toLowerCase()}.png` : '')}
+                                    alt={m.home_team?.name}
+                                    onError={(e) => { e.target.src = 'https://flagcdn.com/w80/un.png'; }}
+                                  />
+                                </div>
+                                <span className="team-name">{getTranslatedName(m.home_team?.name)}</span>
                               </div>
-                            )}
-                          </div>
-                          
-                          <div className="m-team away">
-                            <span className="team-name">{getTranslatedName(m.away_team?.name)}</span>
-                            <div className="bm-flag">
-                              <img 
-                                src={m.away_team?.logo_url || (m.away_team?.country_code ? `https://flagcdn.com/w80/${m.away_team.country_code.toLowerCase()}.png` : '')} 
-                                alt={m.away_team?.name}
-                                onError={(e) => { e.target.src = 'https://flagcdn.com/w80/un.png'; }}
-                              />
+
+                              <div className="m-score-area">
+                                {m.status === 'scheduled' ? (
+                                  <span className="vs-label">VS</span>
+                                ) : (
+                                  <div className="score-display">
+                                    <span>{m.home_score}</span>
+                                    <span className="score-sep">-</span>
+                                    <span>{m.away_score}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="m-team away">
+                                <span className="team-name">{getTranslatedName(m.away_team?.name)}</span>
+                                <div className="bm-flag">
+                                  <img
+                                    src={m.away_team?.logo_url || (m.away_team?.country_code ? `https://flagcdn.com/w80/${m.away_team.country_code.toLowerCase()}.png` : '')}
+                                    alt={m.away_team?.name}
+                                    onError={(e) => { e.target.src = 'https://flagcdn.com/w80/un.png'; }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="match-card-footer">
+                              <span>Sede: {m.stadium?.name || 'Por definir'}</span>
                             </div>
                           </div>
-                        </div>
-                        
-                        <div className="match-card-footer">
-                          <span>Sede: {m.stadium?.name || 'Por definir'}</span>
-                        </div>
-                      </div>
-                    ))}
+                        ))}
+                    </div>
                   </div>
-                </div>
-              ))
+                ))
             )
           ) : (
             knockoutMatches.length === 0 ? (
-              <div className="empty-state" style={{padding: '3rem', textAlign: 'center', color: 'var(--text-gray)'}}>Las eliminatorias aún no han comenzado.</div>
+              <div className="empty-state" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-gray)' }}>Las eliminatorias aún no han comenzado.</div>
             ) : (
               <KnockoutBracket matches={knockoutMatches} />
             )

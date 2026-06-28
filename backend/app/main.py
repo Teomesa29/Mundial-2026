@@ -58,13 +58,13 @@ async def auto_sync_loop():
             async with AsyncSessionLocal() as session:
                 now = datetime.now(timezone.utc)
 
-                # 1. Comprobar si hay partidos activos o por empezar en los próximos 15 minutos
+                # 1. Comprobar si hay partidos activos o por empezar en los próximos 20 minutos
                 active_matches_stmt = select(Match).where(
                     or_(
                         Match.status == MatchStatus.live,
                         and_(
                             Match.status == MatchStatus.scheduled,
-                            Match.match_date <= now + timedelta(minutes=15),
+                            Match.match_date <= now + timedelta(minutes=20),
                             Match.match_date >= now - timedelta(hours=3)
                         )
                     )
@@ -98,7 +98,7 @@ async def auto_sync_loop():
                         next_match = next_match_res.scalar_one_or_none()
                         
                         if next_match:
-                            match_wake_utc = next_match.match_date - timedelta(minutes=15)
+                            match_wake_utc = next_match.match_date - timedelta(minutes=20)
                             if match_wake_utc < wake_target_utc:
                                 wake_target_utc = match_wake_utc
                                 
@@ -129,8 +129,8 @@ async def auto_sync_loop():
                             time_to_match = next_match.match_date - now
                             time_to_match_minutes = int(time_to_match.total_seconds() / 60)
                             
-                            # Despertarse 15 minutos antes del próximo partido, pero dormir como máximo 720 minutos (12 horas)
-                            sleep_seconds = max(5, min(time_to_match_minutes - 15, 720)) * 60
+                            # Despertarse 20 minutos antes del próximo partido, pero dormir como máximo 720 minutos (12 horas)
+                            sleep_seconds = max(5, min(time_to_match_minutes - 20, 720)) * 60
                             logger.info(
                                 f"Modo Inactivo: Próximo partido en {time_to_match_minutes} minutos. "
                                 f"Durmiendo por {int(sleep_seconds / 60)} minutos..."

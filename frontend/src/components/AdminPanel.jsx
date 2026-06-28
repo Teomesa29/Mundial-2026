@@ -214,13 +214,21 @@ export default function AdminPanel() {
     setIsSyncing(true);
     addNotification('Sincronizando', `Iniciando sincronización de ${type}...`, 'gold');
     try {
-      let endpoint;
-      if (type === 'players') endpoint = '/sync/players';
-      else if (type === 'scorers') endpoint = '/sync/scorers';
-      else endpoint = '/sync/standings';
+      if (type === 'all') {
+        // Sync everything sequentially
+        await api.post('/sync/matches');
+        await api.post('/sync/standings');
+        addNotification('Sincronizado', 'Sincronización general finalizada');
+      } else {
+        let endpoint;
+        if (type === 'players') endpoint = '/sync/players';
+        else if (type === 'scorers') endpoint = '/sync/scorers';
+        else if (type === 'matches') endpoint = '/sync/matches';
+        else endpoint = '/sync/standings';
 
-      const res = await api.post(endpoint);
-      addNotification('Sincronizado', `Sincronización de ${type} finalizada: ${res.updated} actualizados, ${res.created} creados`);
+        const res = await api.post(endpoint);
+        addNotification('Sincronizado', `Sincronización de ${type} finalizada: ${res.updated || 0} actualizados, ${res.created || 0} creados`);
+      }
       fetchAdminData();
     } catch (err) {
       console.error(err);
@@ -340,6 +348,9 @@ export default function AdminPanel() {
             <div className="admin-sync-section" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem'}}>
                <button className="action-btn primary" onClick={() => handleSyncData('all')} disabled={isSyncing}>
                   <i className="ri-global-line"></i> Sincronización General
+               </button>
+               <button className="action-btn" onClick={() => handleSyncData('matches')} disabled={isSyncing}>
+                  <i className="ri-football-line"></i> Sincronizar Partidos
                </button>
                <button className="action-btn" onClick={() => handleSyncData('players')} disabled={isSyncing}>
                   <i className="ri-refresh-line"></i> Sincronizar Jugadores
