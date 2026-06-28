@@ -422,7 +422,7 @@ export default function AdminPanel() {
                               style={{ marginRight: '0.5rem' }}
                               title="Ver Llaves"
                             >
-                                <i className="ri-eye-line"></i>
+                                <i className="ri-eye-line"></i> Ver Llaves
                             </button>
                           )}
                            <button 

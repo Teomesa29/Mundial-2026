@@ -40,7 +40,7 @@ export default function Dashboard({ navigateTo, config }) {
         // Calculate user summary
         const completedPreds = myPreds?.length || 0;
         const myRankUser = fullLeaderboard.find(u => u.user_id === me.id);
-        const myRank = myRankUser ? `#${myRankUser.posicion}` : 'Sin clasificar';
+        const myRank = myRankUser ? `#${myRankUser.position}` : 'Sin clasificar';
 
         setUserSummary({
           points: me.total_points || 0,
