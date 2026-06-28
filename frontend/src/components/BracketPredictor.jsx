@@ -203,8 +203,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
     if (isLocked) return true;
     if (!matchData?.match_date) return false;
     const matchTime = new Date(matchData.match_date);
-    const lockTime = new Date(matchTime.getTime() - 15 * 60 * 1000);
-    return new Date() >= lockTime;
+    return new Date() >= matchTime;
   };
 
   const handleScoreChange = (matchId, team, value) => {

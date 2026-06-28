@@ -214,7 +214,7 @@ async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db),
                 else:
                     match_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
                 
-                lock_time = match_utc - timedelta(minutes=15)
+                lock_time = match_utc
                 if now < lock_time:
                     p.predicted_home_score = None
                     p.predicted_away_score = None
@@ -398,7 +398,7 @@ async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_da
         else:
             match_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
             
-        if not is_admin and (match_utc - timedelta(minutes=15) <= now):
+        if not is_admin and (match_utc <= now):
             continue
             
         pred_home = pred_info.get("predicted_home")
@@ -508,7 +508,7 @@ async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = D
                     else:
                         m_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
                         
-                    if not is_admin and (m_utc - timedelta(minutes=15) <= now):
+                    if not is_admin and (m_utc <= now):
                         # Lock active: restore previous value for this match
                         if b_id_str in old_data:
                             new_data[b_id_str] = old_data[b_id_str]
