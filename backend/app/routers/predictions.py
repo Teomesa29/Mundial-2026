@@ -318,15 +318,19 @@ async def get_my_stats(db: AsyncSession = Depends(get_db), current_user: User = 
     return {"total_predictions": 0, "total_points": current_user.total_points}
 
 @router.get("/bracket", response_model=UserBracketResponse)
-async def get_my_bracket(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(UserBracket).where(UserBracket.user_id == current_user.id))
+async def get_my_bracket(user_id: Optional[int] = None, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    target_user_id = current_user.id
+    if user_id is not None and current_user.role.value == "admin":
+        target_user_id = user_id
+        
+    result = await db.execute(select(UserBracket).where(UserBracket.user_id == target_user_id))
     bracket = result.scalar_one_or_none()
     if not bracket:
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         return UserBracketResponse(
             id=0,
-            user_id=current_user.id,
+            user_id=target_user_id,
             bracket_data={},
             points_earned=0,
             created_at=now,
@@ -427,21 +431,26 @@ async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_da
             db.add(new_pred)
 
 @router.post("/bracket", response_model=UserBracketResponse)
-async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def update_my_bracket(bracket_req: UserBracketCreate, user_id: Optional[int] = None, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Check global config for locking
     config = (await db.execute(select(PollaConfig).limit(1))).scalar_one_or_none()
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     
-    if config and current_user.role.value != "admin":
+    target_user_id = current_user.id
+    is_admin = current_user.role.value == "admin"
+    if user_id is not None and is_admin:
+        target_user_id = user_id
+    
+    if config and not is_admin:
         if not config.is_bracket_open:
             raise HTTPException(status_code=400, detail="El registro de llaves está cerrado.")
 
-    result = await db.execute(select(UserBracket).where(UserBracket.user_id == current_user.id))
+    result = await db.execute(select(UserBracket).where(UserBracket.user_id == target_user_id))
     bracket = result.scalar_one_or_none()
     
     if not bracket:
-        bracket = UserBracket(user_id=current_user.id, bracket_data=bracket_req.bracket_data)
+        bracket = UserBracket(user_id=target_user_id, bracket_data=bracket_req.bracket_data)
         db.add(bracket)
     else:
         # Prevent overwriting locked matches inside bracket_data by keeping the existing locked values
@@ -501,7 +510,7 @@ async def update_my_bracket(bracket_req: UserBracketCreate, db: AsyncSession = D
     
     # Sincronizar las predicciones del bracket a la tabla MatchPrediction
     is_admin = (current_user.role.value == "admin")
-    await sync_bracket_to_predictions(db, current_user.id, bracket.bracket_data, is_admin=is_admin)
+    await sync_bracket_to_predictions(db, target_user_id, bracket.bracket_data, is_admin=is_admin)
     
     await db.commit()
     await db.refresh(bracket)

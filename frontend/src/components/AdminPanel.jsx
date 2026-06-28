@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import { getTranslatedName } from '../utils/translations';
 import LoadingScreen from './LoadingScreen';
+import BracketPredictor from './BracketPredictor';
 
 let notificationCounter = 0;
 let tempUserCounter = 0;
@@ -25,6 +26,7 @@ export default function AdminPanel() {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingMatch, setEditingMatch] = useState(null);
+  const [viewingUserBracket, setViewingUserBracket] = useState(null);
   
   // Forms
   const [newUserData, setNewUserData] = useState({ display_name: '', email: '', password: '', role: 'participant' });
@@ -370,50 +372,74 @@ export default function AdminPanel() {
 
       {activeTab === 'users' && (
         <div className="tab-content" style={{animation: 'slideUp 0.3s ease-out'}}>
-          <div className="admin-card">
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
-              <h3 className="section-title">Gestión de Participantes</h3>
-              <button className="action-btn primary" onClick={() => setShowCreateModal(true)}>
-                <i className="ri-user-add-line"></i> Nuevo Usuario
-              </button>
+          {viewingUserBracket ? (
+            <div className="admin-card" style={{ padding: '0', overflow: 'hidden' }}>
+              <div style={{ padding: '1.5rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-light)' }}>
+                <h3 className="section-title" style={{ margin: 0 }}>Llaves de {viewingUserBracket.display_name}</h3>
+                <button className="action-btn" onClick={() => setViewingUserBracket(null)}>
+                  <i className="ri-arrow-left-line"></i> Volver a Usuarios
+                </button>
+              </div>
+              <div style={{ minHeight: '600px' }}>
+                <BracketPredictor adminUserId={viewingUserBracket.id} userRole="admin" />
+              </div>
             </div>
-            <div className="admin-table-wrapper">
-              <table className="lb-table">
-                <thead>
-                  <tr><th>Participante</th><th>Email</th><th>Rol</th><th>Acciones</th></tr>
-                </thead>
-                <tbody>
-                  {users.map(u => (
-                    <tr key={u.id}>
-                      <td>
-                        <div className="user-cell">
-                          <div className="u-avatar" style={{width: '32px', height: '32px', overflow: 'hidden', padding: 0}}>
-                            {u.avatar_url ? (
-                              <img src={u.avatar_url} alt={u.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                            ) : (
-                              u.display_name?.substring(0,2).toUpperCase()
-                            )}
+          ) : (
+            <div className="admin-card">
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                <h3 className="section-title">Gestión de Participantes</h3>
+                <button className="action-btn primary" onClick={() => setShowCreateModal(true)}>
+                  <i className="ri-user-add-line"></i> Nuevo Usuario
+                </button>
+              </div>
+              <div className="admin-table-wrapper">
+                <table className="lb-table">
+                  <thead>
+                    <tr><th>Participante</th><th>Email</th><th>Rol</th><th>Acciones</th></tr>
+                  </thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id}>
+                        <td>
+                          <div className="user-cell">
+                            <div className="u-avatar" style={{width: '32px', height: '32px', overflow: 'hidden', padding: 0}}>
+                              {u.avatar_url ? (
+                                <img src={u.avatar_url} alt={u.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                              ) : (
+                                u.display_name?.substring(0,2).toUpperCase()
+                              )}
+                            </div>
+                            {u.display_name}
                           </div>
-                          {u.display_name}
-                        </div>
-                      </td>
-                      <td style={{fontSize: '0.85rem', color: '#666'}}>{u.email}</td>
-                      <td><span className={`badge-urgency ${u.role === 'admin' ? 'live' : ''}`}>{u.role}</span></td>
-                      <td>
-                         <button 
-                           className="action-btn danger" 
-                           disabled={deletingUserId === u.id}
-                           onClick={() => handleDeleteUser(u.id)}
-                         >
-                            {deletingUserId === u.id ? <i className="ri-loader-4-line ri-spin"></i> : <i className="ri-delete-bin-line"></i>}
-                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                        <td style={{fontSize: '0.85rem', color: '#666'}}>{u.email}</td>
+                        <td><span className={`badge-urgency ${u.role === 'admin' ? 'live' : ''}`}>{u.role}</span></td>
+                        <td>
+                          {u.role !== 'admin' && (
+                            <button 
+                              className="action-btn primary" 
+                              onClick={() => setViewingUserBracket(u)}
+                              style={{ marginRight: '0.5rem' }}
+                              title="Ver Llaves"
+                            >
+                                <i className="ri-eye-line"></i>
+                            </button>
+                          )}
+                           <button 
+                             className="action-btn danger" 
+                             disabled={deletingUserId === u.id}
+                             onClick={() => handleDeleteUser(u.id)}
+                           >
+                              {deletingUserId === u.id ? <i className="ri-loader-4-line ri-spin"></i> : <i className="ri-delete-bin-line"></i>}
+                           </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

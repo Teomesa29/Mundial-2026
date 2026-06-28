@@ -39,7 +39,7 @@ const MATCH_NUM_TO_BRACKET_ID = {
 
 let notificationCounter = 0;
 
-export default function BracketPredictor({ navigateTo, userRole }) {
+export default function BracketPredictor({ navigateTo, userRole, adminUserId }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -107,7 +107,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
       try {
         const [matchesData, bracketResponse, configData, statusData] = await Promise.all([
           api.get('/matches/', { cache: false }),
-          api.get('/predictions/bracket', { cache: false }),
+          api.get('/predictions/bracket' + (adminUserId ? `?user_id=${adminUserId}` : ''), { cache: false }),
           api.get('/matches/config', { cache: false }),
           api.get('/matches/bracket-status', { cache: false })
         ]);
@@ -279,7 +279,7 @@ export default function BracketPredictor({ navigateTo, userRole }) {
         };
       });
 
-      await api.post('/predictions/bracket', { bracket_data: minifiedData });
+      await api.post('/predictions/bracket' + (adminUserId ? `?user_id=${adminUserId}` : ''), { bracket_data: minifiedData });
       if (!isAuto) {
         addNotification('¡Guardado!', 'Tus pronósticos de la fase final se han guardado exitosamente.', 'success');
       }
@@ -626,6 +626,26 @@ export default function BracketPredictor({ navigateTo, userRole }) {
 
   return (
     <div className="view bracket-predictor-view">
+      {adminUserId && (
+        <div style={{
+          backgroundColor: '#ff4d4f',
+          color: 'white',
+          padding: '1rem',
+          textAlign: 'center',
+          fontWeight: 'bold',
+          borderRadius: '8px',
+          margin: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem',
+          boxShadow: '0 4px 6px rgba(255, 77, 79, 0.3)'
+        }}>
+          <i className="ri-error-warning-line" style={{fontSize: '1.2rem'}}></i>
+          <span>MODO DE EMERGENCIA: Estás modificando las llaves de otro usuario. Por favor, asegúrate de que sea necesario.</span>
+        </div>
+      )}
+      <div className="bracket-header-nav">
       {/* Notifications Portal */}
       <div className="notification-container">
         {notifications.map(n => (
