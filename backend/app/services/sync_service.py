@@ -111,9 +111,12 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int, skip_ref
         if delta != 0:
             user_points_delta[pred.user_id] = user_points_delta.get(pred.user_id, 0) + delta
             
-        pred.points_earned = points
-        pred.is_exact_score = is_exact
-        pred.is_correct_result = is_correct
+        if pred.points_earned != points:
+            pred.points_earned = points
+        if pred.is_exact_score != is_exact:
+            pred.is_exact_score = is_exact
+        if pred.is_correct_result != is_correct:
+            pred.is_correct_result = is_correct
         
     # Actualizar puntos de usuarios en lote (o al menos agrupados)
     if user_points_delta and not skip_refresh:
@@ -833,6 +836,7 @@ async def recalculate_all_user_points(db: AsyncSession) -> SyncResult:
     finished_matches = (await db.execute(select(Match.id).where(Match.status == MatchStatus.finished))).scalars().all()
     for match_id in finished_matches:
         await calculate_predictions_points(db, match_id, skip_refresh=True)
+        db.expunge_all()
 
     # Execute group by queries to get sums for all users in just 3 queries
     mp_res = await db.execute(select(MatchPrediction.user_id, func.sum(MatchPrediction.points_earned)).group_by(MatchPrediction.user_id))

@@ -201,6 +201,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         
         start_time = time.time()
         response = await call_next(request)
+        # Evitar caché en las rutas API (soluciona el problema de que el Ranking no se refresca automáticamente)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         duration = round((time.time() - start_time) * 1000, 2)
         
         logger.info(f"{request.method} {request.url.path} - {response.status_code} - {duration}ms")
