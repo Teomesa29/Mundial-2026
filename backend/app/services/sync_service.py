@@ -18,7 +18,7 @@ class SyncResult(BaseModel):
     created: int = 0
     errors: int = 0
 
-async def calculate_predictions_points(db: AsyncSession, match_id: int) -> None:
+async def calculate_predictions_points(db: AsyncSession, match_id: int, skip_refresh: bool = False) -> None:
     # Obtener el partido y sus predicciones
     match_q = select(Match).where(Match.id == match_id)
     match_res = await db.execute(match_q)
@@ -132,20 +132,21 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int) -> None:
     await update_team_stats_from_matches(db, match_obj.home_team_id)
     await update_team_stats_from_matches(db, match_obj.away_team_id)
     
-    # Refrescar la vista materializada del leaderboard
-    try:
-        from sqlalchemy import text
-        await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard"))
-        await db.commit()
-    except Exception as e:
-        # Rollback the failed transaction first
-        await db.rollback()
-        # Si falla el concurrente (ej. no hay índice o primera vez), intentar normal
+    if not skip_refresh:
+        # Refrescar la vista materializada del leaderboard
         try:
-            await db.execute(text("REFRESH MATERIALIZED VIEW leaderboard"))
+            from sqlalchemy import text
+            await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard"))
             await db.commit()
-        except Exception as e2:
-            logger.error(f"Error refreshing leaderboard view: {e2}")
+        except Exception as e:
+            # Rollback the failed transaction first
+            await db.rollback()
+            # Si falla el concurrente (ej. no hay índice o primera vez), intentar normal
+            try:
+                await db.execute(text("REFRESH MATERIALIZED VIEW leaderboard"))
+                await db.commit()
+            except Exception as e2:
+                logger.error(f"Error refreshing leaderboard view: {e2}")
 
 async def update_team_stats_from_matches(db: AsyncSession, team_id: int) -> None:
     """
@@ -830,7 +831,7 @@ async def recalculate_all_user_points(db: AsyncSession) -> SyncResult:
     # Primero recalculamos los puntos ganados para cada predicción basada en los resultados reales de los partidos terminados
     finished_matches = (await db.execute(select(Match.id).where(Match.status == MatchStatus.finished))).scalars().all()
     for match_id in finished_matches:
-        await calculate_predictions_points(db, match_id)
+        await calculate_predictions_points(db, match_id, skip_refresh=True)
 
     users = (await db.execute(select(User))).scalars().all()
     updated = 0
