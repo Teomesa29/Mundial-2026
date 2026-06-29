@@ -178,6 +178,7 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
           }
         });
 
+        buildDynamicBracket(newState);
         setBracketState(newState);
       } catch (err) {
         console.error('Error fetching bracket data:', err);
@@ -204,6 +205,51 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
     if (!matchData?.match_date) return false;
     const matchTime = new Date(matchData.match_date);
     return new Date() >= matchTime;
+  };
+
+  const buildDynamicBracket = (state) => {
+    const getWinner = (mId) => {
+      const m = state[mId];
+      if (!m) return null;
+      if (m.predicted_winner_id) {
+        return m.predicted_winner_id === m.home?.id ? m.home : m.away;
+      }
+      return null;
+    };
+    
+    // R16 (17-24)
+    if(state[17]) { state[17].home = getWinner(1); state[17].away = getWinner(2); }
+    if(state[18]) { state[18].home = getWinner(3); state[18].away = getWinner(4); }
+    if(state[19]) { state[19].home = getWinner(5); state[19].away = getWinner(6); }
+    if(state[20]) { state[20].home = getWinner(7); state[20].away = getWinner(8); }
+    if(state[21]) { state[21].home = getWinner(9); state[21].away = getWinner(10); }
+    if(state[22]) { state[22].home = getWinner(11); state[22].away = getWinner(12); }
+    if(state[23]) { state[23].home = getWinner(13); state[23].away = getWinner(14); }
+    if(state[24]) { state[24].home = getWinner(15); state[24].away = getWinner(16); }
+    
+    // QF (25-28)
+    if(state[25]) { state[25].home = getWinner(17); state[25].away = getWinner(18); }
+    if(state[26]) { state[26].home = getWinner(19); state[26].away = getWinner(20); }
+    if(state[27]) { state[27].home = getWinner(21); state[27].away = getWinner(22); }
+    if(state[28]) { state[28].home = getWinner(23); state[28].away = getWinner(24); }
+    
+    // SF (29-30)
+    if(state[29]) { state[29].home = getWinner(25); state[29].away = getWinner(26); }
+    if(state[30]) { state[30].home = getWinner(27); state[30].away = getWinner(28); }
+    
+    // Final (31)
+    if(state[31]) { state[31].home = getWinner(29); state[31].away = getWinner(30); }
+    
+    // Third Place (32)
+    const getLoser = (mId) => {
+      const m = state[mId];
+      if (!m) return null;
+      if (m.predicted_winner_id) {
+        return m.predicted_winner_id === m.home?.id ? m.away : m.home;
+      }
+      return null;
+    };
+    if(state[32]) { state[32].home = getLoser(29); state[32].away = getLoser(30); }
   };
 
   const handleScoreChange = (matchId, team, value) => {
@@ -234,6 +280,8 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
         ...prev,
         [matchId]: updatedMatch
       };
+
+      buildDynamicBracket(tempState);
 
       return tempState;
     });
