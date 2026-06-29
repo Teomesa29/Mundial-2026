@@ -116,7 +116,7 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int, skip_ref
         pred.is_correct_result = is_correct
         
     # Actualizar puntos de usuarios en lote (o al menos agrupados)
-    if user_points_delta:
+    if user_points_delta and not skip_refresh:
         for user_id, delta in user_points_delta.items():
             from sqlalchemy import update
             await db.execute(
@@ -127,10 +127,11 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int, skip_ref
         
     await db.commit()
 
-    # ACTUALIZACIÓN DE ESTADÍSTICAS REALES DEL EQUIPO
-    # Recalculamos para ambos equipos del partido
-    await update_team_stats_from_matches(db, match_obj.home_team_id)
-    await update_team_stats_from_matches(db, match_obj.away_team_id)
+    if not skip_refresh:
+        # ACTUALIZACIÓN DE ESTADÍSTICAS REALES DEL EQUIPO
+        # Recalculamos para ambos equipos del partido
+        await update_team_stats_from_matches(db, match_obj.home_team_id)
+        await update_team_stats_from_matches(db, match_obj.away_team_id)
     
     if not skip_refresh:
         # Refrescar la vista materializada del leaderboard
