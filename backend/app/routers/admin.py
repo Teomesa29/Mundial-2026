@@ -134,7 +134,9 @@ async def update_match_manually(id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/matches/{id}/recalculate")
 async def recalculate_match(id: int, db: AsyncSession = Depends(get_db)):
-    return {"status": "ok"}
+    from app.services.sync_service import calculate_predictions_points
+    await calculate_predictions_points(db, id)
+    return {"status": "ok", "message": "Puntos recalculados exitosamente"}
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 

@@ -821,10 +821,16 @@ async def sync_standings(db: AsyncSession) -> SyncResult:
 
 async def recalculate_all_user_points(db: AsyncSession) -> SyncResult:
     from sqlalchemy import select, func
-    from app.models.models import User, MatchPrediction, UserBracket, SpecialBetAnswer
+    from app.models.models import User, MatchPrediction, UserBracket, SpecialBetAnswer, Match
+    from app.models.enums import MatchStatus
     from sqlalchemy import text
     import logging
     logger = logging.getLogger(__name__)
+
+    # Primero recalculamos los puntos ganados para cada predicción basada en los resultados reales de los partidos terminados
+    finished_matches = (await db.execute(select(Match.id).where(Match.status == MatchStatus.finished))).scalars().all()
+    for match_id in finished_matches:
+        await calculate_predictions_points(db, match_id)
 
     users = (await db.execute(select(User))).scalars().all()
     updated = 0

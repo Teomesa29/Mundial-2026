@@ -58,12 +58,24 @@ export default function Predictions({ navigateTo }) {
 
   const isLocked = isGlobalLocked();
 
+  const isMatchLocked = (match) => {
+    if (isLocked) return true;
+    if (match.status !== 'scheduled') return true;
+    if (!match.match_date) return false;
+    const dateStr = match.match_date;
+    const matchTime = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
+    const lockMinutes = config?.prediction_lock_minutes_before_match != null ? config.prediction_lock_minutes_before_match : 15;
+    const lockTime = new Date(matchTime.getTime() - lockMinutes * 60000);
+    return new Date() >= lockTime;
+  };
+
   if (loading) {
     return <LoadingScreen text="PREDICCIONES..." />;
   }
 
   const handleScoreChange = (matchId, team, value) => {
-    if (isLocked) return;
+    const match = matches.find(m => m.id === matchId);
+    if (isLocked || (match && isMatchLocked(match))) return;
     setPredictions(prev => ({
       ...prev,
       [matchId]: {
@@ -74,7 +86,8 @@ export default function Predictions({ navigateTo }) {
   };
 
   const handleSave = async (matchId) => {
-    if (isLocked) return;
+    const match = matches.find(m => m.id === matchId);
+    if (isLocked || (match && isMatchLocked(match))) return;
     const pred = predictions[matchId];
     if (!pred) return;
 
@@ -342,20 +355,20 @@ export default function Predictions({ navigateTo }) {
                                   <div className="score-inputs" style={{ gap: '0.4rem' }}>
                                     <input
                                       type="number"
-                                      className={`score-input ${(match.status === 'scheduled' && !isLocked) ? 'pred-editable' : ''}`}
+                                      className={`score-input ${!isMatchLocked(match) ? 'pred-editable' : ''}`}
                                       value={pred?.home ?? ''}
                                       onChange={(e) => handleScoreChange(match.id, 'home', e.target.value)}
-                                      readOnly={match.status !== 'scheduled' || isLocked}
+                                      readOnly={isMatchLocked(match)}
                                       placeholder="-"
                                       style={{ fontSize: '1.8rem', width: '55px', height: '65px', borderRadius: '14px' }}
                                     />
                                     <span className="score-divider" style={{ fontSize: '1.5rem', opacity: 0.3, fontWeight: 900 }}>-</span>
                                     <input
                                       type="number"
-                                      className={`score-input ${(match.status === 'scheduled' && !isLocked) ? 'pred-editable' : ''}`}
+                                      className={`score-input ${!isMatchLocked(match) ? 'pred-editable' : ''}`}
                                       value={pred?.away ?? ''}
                                       onChange={(e) => handleScoreChange(match.id, 'away', e.target.value)}
-                                      readOnly={match.status !== 'scheduled' || isLocked}
+                                      readOnly={isMatchLocked(match)}
                                       placeholder="-"
                                       style={{ fontSize: '1.8rem', width: '55px', height: '65px', borderRadius: '14px' }}
                                     />
@@ -380,7 +393,7 @@ export default function Predictions({ navigateTo }) {
                                 </div>
                               )}
 
-                              {match.status === 'scheduled' && !isLocked && (
+                              {!isMatchLocked(match) && (
                                 <button
                                   className={`btn-primary ${pred?.id ? 'btn-outline' : ''}`}
                                   style={{ width: '100%', padding: '1rem', justifyContent: 'center', marginTop: '1rem', borderRadius: '16px', fontSize: '0.9rem', fontWeight: 800 }}

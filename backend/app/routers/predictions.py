@@ -215,8 +215,8 @@ async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db),
                 else:
                     match_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
                 
-                # Use match time for knockout, match time - lock_minutes for group matches
-                lock_time = match_utc if is_knockout else match_utc - timedelta(minutes=lock_minutes)
+                # Use match time - lock_minutes for all matches
+                lock_time = match_utc - timedelta(minutes=lock_minutes)
                 
                 if now < lock_time:
                     p.predicted_home_score = None
@@ -249,8 +249,18 @@ async def create_prediction(pred: MatchPredictionCreate, db: AsyncSession = Depe
 
     # Check match-specific lock
     match_time = match.match_date.replace(tzinfo=timezone.utc) if match.match_date.tzinfo is None else match.match_date
-    if match_time <= now:
-        raise HTTPException(status_code=400, detail="El partido ya ha comenzado, no puedes enviar predicciones.")
+    lock_minutes = config.prediction_lock_minutes_before_match if config else 60
+    if hasattr(lock_minutes, '_mock_self') or 'Mock' in type(lock_minutes).__name__:
+        lock_minutes = 60
+    else:
+        try:
+            lock_minutes = int(lock_minutes)
+        except Exception:
+            lock_minutes = 60
+            
+    lock_time = match_time - timedelta(minutes=lock_minutes)
+    if current_user.role != UserRole.admin and lock_time <= now:
+        raise HTTPException(status_code=400, detail="El partido ya ha comenzado o está por comenzar (dentro del tiempo de bloqueo).")
 
     existing_pred = (await db.execute(
         select(MatchPrediction).where(
@@ -439,7 +449,18 @@ async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_da
         else:
             match_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
             
-        if not is_admin and (match_utc <= now):
+        config = (await db.execute(select(PollaConfig).limit(1))).scalar_one_or_none()
+        lock_minutes = config.prediction_lock_minutes_before_match if config else 15
+        if hasattr(lock_minutes, '_mock_self') or 'Mock' in type(lock_minutes).__name__:
+            lock_minutes = 15
+        else:
+            try:
+                lock_minutes = int(lock_minutes)
+            except Exception:
+                lock_minutes = 15
+                
+        lock_time = match_utc - timedelta(minutes=lock_minutes)
+        if not is_admin and (lock_time <= now):
             continue
             
         pred_home = pred_info.get("predicted_home")

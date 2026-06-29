@@ -242,7 +242,6 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
   }, []);
 
   const isGlobalLocked = () => {
-    if (userRole === 'admin') return false;
     if (!config) return false;
     if (!config.is_bracket_open) return true;
     return false;
@@ -251,11 +250,13 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
   const isLocked = isGlobalLocked();
 
   const isMatchLocked = (matchData) => {
-    if (userRole === 'admin') return false;
     if (isLocked) return true;
     if (!matchData?.match_date) return false;
-    const matchTime = new Date(matchData.match_date);
-    return new Date() >= matchTime;
+    const dateStr = matchData.match_date;
+    const matchTime = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
+    const lockMinutes = config?.prediction_lock_minutes_before_match != null ? config.prediction_lock_minutes_before_match : 15;
+    const lockTime = new Date(matchTime.getTime() - lockMinutes * 60000);
+    return new Date() >= lockTime;
   };
 
   const handleScoreChange = (matchId, team, value) => {
