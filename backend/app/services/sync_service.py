@@ -834,20 +834,22 @@ async def recalculate_all_user_points(db: AsyncSession) -> SyncResult:
     for match_id in finished_matches:
         await calculate_predictions_points(db, match_id, skip_refresh=True)
 
+    # Execute group by queries to get sums for all users in just 3 queries
+    mp_res = await db.execute(select(MatchPrediction.user_id, func.sum(MatchPrediction.points_earned)).group_by(MatchPrediction.user_id))
+    mp_dict = {row[0]: row[1] or 0 for row in mp_res.all()}
+    
+    ub_res = await db.execute(select(UserBracket.user_id, func.sum(UserBracket.points_earned)).group_by(UserBracket.user_id))
+    ub_dict = {row[0]: row[1] or 0 for row in ub_res.all()}
+    
+    sb_res = await db.execute(select(SpecialBetAnswer.user_id, func.sum(SpecialBetAnswer.points_earned)).group_by(SpecialBetAnswer.user_id))
+    sb_dict = {row[0]: row[1] or 0 for row in sb_res.all()}
+    
     users = (await db.execute(select(User))).scalars().all()
     updated = 0
     for u in users:
-        # MatchPrediction
-        mp_res = await db.execute(select(func.sum(MatchPrediction.points_earned)).where(MatchPrediction.user_id == u.id))
-        mp_pts = mp_res.scalar() or 0
-        
-        # UserBracket
-        ub_res = await db.execute(select(func.sum(UserBracket.points_earned)).where(UserBracket.user_id == u.id))
-        ub_pts = ub_res.scalar() or 0
-        
-        # SpecialBetAnswer
-        sb_res = await db.execute(select(func.sum(SpecialBetAnswer.points_earned)).where(SpecialBetAnswer.user_id == u.id))
-        sb_pts = sb_res.scalar() or 0
+        mp_pts = mp_dict.get(u.id, 0)
+        ub_pts = ub_dict.get(u.id, 0)
+        sb_pts = sb_dict.get(u.id, 0)
         
         total = mp_pts + ub_pts + sb_pts
         if u.total_points != total:
