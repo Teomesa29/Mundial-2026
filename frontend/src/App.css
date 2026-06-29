@@ -1764,3 +1764,23 @@
 
 
 
+
+.btn-saving-anim {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--gold-dark) !important;
+  pointer-events: none;
+  border: none;
+}
+.btn-saving-anim::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: loading-shimmer 1.5s infinite;
+  z-index: 1;
+}
+@keyframes loading-shimmer {
+  100% { left: 100%; }
+}
