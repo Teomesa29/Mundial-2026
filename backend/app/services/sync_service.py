@@ -439,6 +439,9 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                 if db_match.status == MatchStatus.live and api_status == MatchStatus.scheduled:
                     target_status = MatchStatus.live
                 
+                home_penalties = match_data.get('score', {}).get('penalties', {}).get('home')
+                away_penalties = match_data.get('score', {}).get('penalties', {}).get('away')
+
                 # Keep database scores if API scores are None
                 target_home_score = home_score if home_score is not None else db_match.home_score
                 target_away_score = away_score if away_score is not None else db_match.away_score
@@ -451,9 +454,19 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                         target_away_score = 0
 
                 # Update
-                if db_match.home_score != target_home_score or db_match.away_score != target_away_score or db_match.status != target_status or stadium_updated:
+                needs_update = (
+                    db_match.home_score != target_home_score or
+                    db_match.away_score != target_away_score or
+                    db_match.home_score_penalties != home_penalties or
+                    db_match.away_score_penalties != away_penalties or
+                    db_match.status != target_status or 
+                    stadium_updated
+                )
+                if needs_update:
                     db_match.home_score = target_home_score
                     db_match.away_score = target_away_score
+                    db_match.home_score_penalties = home_penalties if home_penalties is not None else db_match.home_score_penalties
+                    db_match.away_score_penalties = away_penalties if away_penalties is not None else db_match.away_score_penalties
                     db_match.status = target_status
                     db_match.match_number = tournament_match_number
                     
@@ -496,6 +509,9 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                 # Create the match
                 init_home_score = home_score
                 init_away_score = away_score
+                home_penalties = match_data.get('score', {}).get('penalties', {}).get('home')
+                away_penalties = match_data.get('score', {}).get('penalties', {}).get('away')
+
                 if api_status == MatchStatus.live:
                     if init_home_score is None:
                         init_home_score = 0
@@ -513,7 +529,9 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                     match_number=tournament_match_number,
                     status=api_status,
                     home_score=init_home_score,
-                    away_score=init_away_score
+                    away_score=init_away_score,
+                    home_score_penalties=home_penalties,
+                    away_score_penalties=away_penalties
                 )
                 db.add(new_match)
                 await db.flush() # Flush to get id for local dictionaries
