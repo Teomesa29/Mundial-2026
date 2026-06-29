@@ -178,6 +178,58 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
           }
         });
 
+        const buildDynamicRealBracket = (state) => {
+          const getRealWinner = (mId) => {
+            const m = state[mId];
+            if (!m || !m.is_finished) return null;
+            if (m.real_home > m.real_away) return m.home;
+            if (m.real_away > m.real_home) return m.away;
+            if (m.real_home === m.real_away) {
+              if (m.real_home_penalties > m.real_away_penalties) return m.home;
+              if (m.real_away_penalties > m.real_home_penalties) return m.away;
+            }
+            return null;
+          };
+          
+          // R16 (17-24)
+          if(state[17]) { state[17].home = getRealWinner(1) || state[17].home; state[17].away = getRealWinner(2) || state[17].away; }
+          if(state[18]) { state[18].home = getRealWinner(3) || state[18].home; state[18].away = getRealWinner(4) || state[18].away; }
+          if(state[19]) { state[19].home = getRealWinner(5) || state[19].home; state[19].away = getRealWinner(6) || state[19].away; }
+          if(state[20]) { state[20].home = getRealWinner(7) || state[20].home; state[20].away = getRealWinner(8) || state[20].away; }
+          if(state[21]) { state[21].home = getRealWinner(9) || state[21].home; state[21].away = getRealWinner(10) || state[21].away; }
+          if(state[22]) { state[22].home = getRealWinner(11) || state[22].home; state[22].away = getRealWinner(12) || state[22].away; }
+          if(state[23]) { state[23].home = getRealWinner(13) || state[23].home; state[23].away = getRealWinner(14) || state[23].away; }
+          if(state[24]) { state[24].home = getRealWinner(15) || state[24].home; state[24].away = getRealWinner(16) || state[24].away; }
+          
+          // QF (25-28)
+          if(state[25]) { state[25].home = getRealWinner(17) || state[25].home; state[25].away = getRealWinner(18) || state[25].away; }
+          if(state[26]) { state[26].home = getRealWinner(19) || state[26].home; state[26].away = getRealWinner(20) || state[26].away; }
+          if(state[27]) { state[27].home = getRealWinner(21) || state[27].home; state[27].away = getRealWinner(22) || state[27].away; }
+          if(state[28]) { state[28].home = getRealWinner(23) || state[28].home; state[28].away = getRealWinner(24) || state[28].away; }
+          
+          // SF (29-30)
+          if(state[29]) { state[29].home = getRealWinner(25) || state[29].home; state[29].away = getRealWinner(26) || state[29].away; }
+          if(state[30]) { state[30].home = getRealWinner(27) || state[30].home; state[30].away = getRealWinner(28) || state[30].away; }
+          
+          // Final (31)
+          if(state[31]) { state[31].home = getRealWinner(29) || state[31].home; state[31].away = getRealWinner(30) || state[31].away; }
+          
+          // Third Place (32)
+          const getRealLoser = (mId) => {
+            const m = state[mId];
+            if (!m || !m.is_finished) return null;
+            if (m.real_home > m.real_away) return m.away;
+            if (m.real_away > m.real_home) return m.home;
+            if (m.real_home === m.real_away) {
+              if (m.real_home_penalties > m.real_away_penalties) return m.away;
+              if (m.real_away_penalties > m.real_home_penalties) return m.home;
+            }
+            return null;
+          };
+          if(state[32]) { state[32].home = getRealLoser(29) || state[32].home; state[32].away = getRealLoser(30) || state[32].away; }
+        };
+
+        buildDynamicRealBracket(newState);
         setBracketState(newState);
       } catch (err) {
         console.error('Error fetching bracket data:', err);
