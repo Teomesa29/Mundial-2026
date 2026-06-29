@@ -325,61 +325,18 @@ async def get_my_bracket(user_id: Optional[int] = None, db: AsyncSession = Depen
         
     result = await db.execute(select(UserBracket).where(UserBracket.user_id == target_user_id))
     bracket = result.scalar_one_or_none()
-    
-    from datetime import datetime, timezone
-    from app.models.enums import MatchStage
-    from sqlalchemy.orm import joinedload
-    
-    # Also fetch all knockout predictions for this user to build/merge bracket_data dynamically
-    preds_result = await db.execute(
-        select(MatchPrediction)
-        .options(joinedload(MatchPrediction.match))
-        .join(Match, MatchPrediction.match_id == Match.id)
-        .where(MatchPrediction.user_id == target_user_id, Match.stage != MatchStage.group)
-    )
-    preds = preds_result.scalars().all()
-    
-    merged_data = {}
-    if bracket and bracket.bracket_data:
-        merged_data = dict(bracket.bracket_data)
-        
-    MATCH_NUM_TO_BRACKET_ID = {
-        75: 1, 78: 2, 73: 3, 76: 4, 84: 5, 83: 6, 82: 7, 81: 8,
-        74: 9, 77: 10, 79: 11, 80: 12, 87: 13, 86: 14, 85: 15, 88: 16,
-        89: 17, 90: 18, 93: 19, 94: 20, 91: 21, 92: 22, 95: 23, 96: 24,
-        97: 25, 98: 26, 99: 27, 100: 28,
-        101: 29, 102: 30,
-        104: 31, 103: 32
-    }
-    
-    for p in preds:
-        bracket_id = MATCH_NUM_TO_BRACKET_ID.get(p.match.match_number)
-        if bracket_id:
-            merged_data[str(bracket_id)] = {
-                "predicted_home": p.predicted_home_score if p.predicted_home_score is not None else "",
-                "predicted_away": p.predicted_away_score if p.predicted_away_score is not None else "",
-                "predicted_winner_id": p.predicted_winner_id
-            }
-
     if not bracket:
+        from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         return UserBracketResponse(
             id=0,
             user_id=target_user_id,
-            bracket_data=merged_data,
+            bracket_data={},
             points_earned=0,
             created_at=now,
             updated_at=now
         )
-        
-    return UserBracketResponse(
-        id=bracket.id,
-        user_id=bracket.user_id,
-        bracket_data=merged_data,
-        points_earned=bracket.points_earned,
-        created_at=bracket.created_at,
-        updated_at=bracket.updated_at
-    )
+    return bracket
 
 async def sync_bracket_to_predictions(db: AsyncSession, user_id: int, bracket_data: dict, is_admin: bool = False):
     from app.models.enums import MatchStage
