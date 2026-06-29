@@ -220,12 +220,14 @@ export default function AdminPanel() {
         // Sync everything sequentially
         await api.post('/sync/matches');
         await api.post('/sync/standings');
+        await api.post('/sync/points');
         addNotification('Sincronizado', 'Sincronización general finalizada');
       } else {
         let endpoint;
         if (type === 'players') endpoint = '/sync/players';
         else if (type === 'scorers') endpoint = '/sync/scorers';
         else if (type === 'matches') endpoint = '/sync/matches';
+        else if (type === 'points') endpoint = '/sync/points';
         else endpoint = '/sync/standings';
 
         const res = await api.post(endpoint);
@@ -355,7 +357,10 @@ export default function AdminPanel() {
                   <i className="ri-football-line"></i> Sincronizar Partidos
                </button>
                <button className="action-btn" onClick={() => handleSyncData('players')} disabled={isSyncing}>
-                  <i className="ri-refresh-line"></i> Sincronizar Jugadores
+                  <i className="ri-team-line"></i> Sincronizar Plantillas (Jugadores)
+               </button>
+               <button className="action-btn" onClick={() => handleSyncData('points')} disabled={isSyncing}>
+                  <i className="ri-calculator-line"></i> Recalcular Puntos (Participantes)
                </button>
                <button className="action-btn" onClick={() => handleSyncData('scorers')} disabled={isSyncing}>
                   <i className="ri-medal-line"></i> Actualizar Goleadores

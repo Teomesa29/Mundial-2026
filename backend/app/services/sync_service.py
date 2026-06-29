@@ -800,3 +800,47 @@ async def sync_standings(db: AsyncSession) -> SyncResult:
         created=res1.created + res2.created + res3.created,
         errors=res1.errors + res2.errors + res3.errors
     )
+
+async def recalculate_all_user_points(db: AsyncSession) -> SyncResult:
+    from sqlalchemy import select, func
+    from app.models.models import User, MatchPrediction, UserBracket, SpecialBetAnswer
+    from sqlalchemy import text
+    import logging
+    logger = logging.getLogger(__name__)
+
+    users = (await db.execute(select(User))).scalars().all()
+    updated = 0
+    for u in users:
+        # MatchPrediction
+        mp_res = await db.execute(select(func.sum(MatchPrediction.points_earned)).where(MatchPrediction.user_id == u.id))
+        mp_pts = mp_res.scalar() or 0
+        
+        # UserBracket
+        ub_res = await db.execute(select(func.sum(UserBracket.points_earned)).where(UserBracket.user_id == u.id))
+        ub_pts = ub_res.scalar() or 0
+        
+        # SpecialBetAnswer
+        sb_res = await db.execute(select(func.sum(SpecialBetAnswer.points_earned)).where(SpecialBetAnswer.user_id == u.id))
+        sb_pts = sb_res.scalar() or 0
+        
+        total = mp_pts + ub_pts + sb_pts
+        if u.total_points != total:
+            u.total_points = total
+            updated += 1
+    
+    await db.commit()
+    
+    # Refresh materialized view
+    try:
+        await db.execute(text('REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard'))
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        try:
+            await db.execute(text('REFRESH MATERIALIZED VIEW leaderboard'))
+            await db.commit()
+        except Exception as e2:
+            logger.error(f'Error refreshing leaderboard view: {e2}')
+            
+    return SyncResult(updated=updated, created=0, errors=0)
+

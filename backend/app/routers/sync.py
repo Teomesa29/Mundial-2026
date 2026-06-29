@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.services.sync_service import sync_standings, sync_players, sync_scorers, sync_matches
+from app.services.sync_service import sync_standings, sync_players, sync_scorers, sync_matches, recalculate_all_user_points
 from app.core.deps import get_current_user
 from app.models.models import User
 
@@ -34,3 +34,11 @@ async def trigger_sync_scorers(db: AsyncSession = Depends(get_db), current_user:
         raise HTTPException(status_code=403, detail="Only admins can sync data")
     result = await sync_scorers(db)
     return result
+
+@router.post('/points')
+async def trigger_sync_points(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail='Only admins can sync data')
+    result = await recalculate_all_user_points(db)
+    return result
+
