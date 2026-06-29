@@ -194,7 +194,7 @@ async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db),
             lock_minutes = 60
     
     # Hide other users' predictions unless the match is locked
-    obscure = (current_user.id != user_id) and (current_user.role.value != "admin")
+    obscure = (current_user.id != user_id)
     
     # Ensure group_name is set for each match in predictions
     for p in preds:
@@ -207,14 +207,17 @@ async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db),
             stage_str = p.match.stage.value if hasattr(p.match.stage, 'value') else str(p.match.stage)
             p.match.group_name = f"V2_RELOADED: {stage_str}"
             is_knockout = "group" not in stage_str.lower()
-            if obscure and is_knockout:
+            
+            if obscure:
                 m_date = p.match.match_date
                 if isinstance(m_date, str):
                     match_utc = datetime.fromisoformat(m_date.replace('Z', '+00:00'))
                 else:
                     match_utc = m_date.replace(tzinfo=timezone.utc) if m_date.tzinfo is None else m_date
                 
-                lock_time = match_utc
+                # Use match time for knockout, match time - lock_minutes for group matches
+                lock_time = match_utc if is_knockout else match_utc - timedelta(minutes=lock_minutes)
+                
                 if now < lock_time:
                     p.predicted_home_score = None
                     p.predicted_away_score = None
@@ -224,7 +227,7 @@ async def get_user_predictions(user_id: int, db: AsyncSession = Depends(get_db),
 
 @router.post("/", response_model=MatchPredictionResponse)
 async def create_prediction(pred: MatchPredictionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    from datetime import timezone
+    from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
 
     # ── Sequential queries (asyncio.gather is unsafe on a single AsyncSession) ──
