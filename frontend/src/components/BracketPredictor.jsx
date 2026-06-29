@@ -242,6 +242,7 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
   }, []);
 
   const isGlobalLocked = () => {
+    if (userRole === 'admin') return false;
     if (!config) return false;
     if (!config.is_bracket_open) return true;
     return false;
@@ -250,6 +251,7 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
   const isLocked = isGlobalLocked();
 
   const isMatchLocked = (matchData) => {
+    if (userRole === 'admin') return false;
     if (isLocked) return true;
     if (!matchData?.match_date) return false;
     const dateStr = matchData.match_date;

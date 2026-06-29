@@ -47,6 +47,7 @@ export default function Predictions({ navigateTo }) {
   }, []);
 
   const isGlobalLocked = () => {
+    if (userRole === 'admin') return false;
     if (!config) return false;
     if (!config.is_registration_open) return true;
     if (config.entry_deadline) {
@@ -59,6 +60,7 @@ export default function Predictions({ navigateTo }) {
   const isLocked = isGlobalLocked();
 
   const isMatchLocked = (match) => {
+    if (userRole === 'admin') return false;
     if (isLocked) return true;
     if (match.status !== 'scheduled') return true;
     if (!match.match_date) return false;
