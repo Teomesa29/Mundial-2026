@@ -412,18 +412,37 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                 api_status = MatchStatus.live
                 
             score_data = match_data.get('score', {}) or {}
+            reg_time = score_data.get('regularTime') or {}
+            ex_time = score_data.get('extraTime') or {}
             full_time = score_data.get('fullTime') or {}
-            home_score = full_time.get('home')
-            away_score = full_time.get('away')
-            
             penalties = score_data.get('penalties') or {}
+            
+            home_score = None
+            away_score = None
+            
+            reg_h = reg_time.get('home')
+            reg_a = reg_time.get('away')
+            ex_h = ex_time.get('home')
+            ex_a = ex_time.get('away')
+            
+            if reg_h is not None:
+                home_score = reg_h
+                away_score = reg_a
+                if ex_h is not None:
+                    home_score += ex_h
+                    away_score += ex_a
+            else:
+                home_score = full_time.get('home')
+                away_score = full_time.get('away')
+                home_pen = penalties.get('home')
+                away_pen = penalties.get('away')
+                if home_score is not None and home_pen is not None:
+                    home_score = max(0, home_score - home_pen)
+                if away_score is not None and away_pen is not None:
+                    away_score = max(0, away_score - away_pen)
+            
             home_penalties = penalties.get('home')
             away_penalties = penalties.get('away')
-            
-            if home_score is not None and home_penalties is not None:
-                home_score = max(0, home_score - home_penalties)
-            if away_score is not None and away_penalties is not None:
-                away_score = max(0, away_score - away_penalties)
             
             # Look up match in-memory
             db_match = db_matches.get(ext_id)
