@@ -411,8 +411,16 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
             if api_status == MatchStatus.scheduled and match_utc <= now:
                 api_status = MatchStatus.live
                 
-            home_score = match_data.get('score', {}).get('fullTime', {}).get('home')
-            away_score = match_data.get('score', {}).get('fullTime', {}).get('away')
+            score_data = match_data.get('score', {})
+            if score_data.get('extraTime') and score_data['extraTime'].get('home') is not None:
+                home_score = score_data['extraTime']['home']
+                away_score = score_data['extraTime']['away']
+            elif score_data.get('regularTime') and score_data['regularTime'].get('home') is not None:
+                home_score = score_data['regularTime']['home']
+                away_score = score_data['regularTime']['away']
+            else:
+                home_score = score_data.get('fullTime', {}).get('home')
+                away_score = score_data.get('fullTime', {}).get('away')
             
             # Look up match in-memory
             db_match = db_matches.get(ext_id)

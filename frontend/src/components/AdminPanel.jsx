@@ -30,7 +30,7 @@ export default function AdminPanel() {
   
   // Forms
   const [newUserData, setNewUserData] = useState({ display_name: '', email: '', password: '', role: 'participant' });
-  const [matchUpdate, setMatchUpdate] = useState({ home_score: 0, away_score: 0, status: 'finished' });
+  const [matchUpdate, setMatchUpdate] = useState({ home_score: 0, away_score: 0, home_score_penalties: null, away_score_penalties: null, status: 'finished' });
 
   // Statuses
   const [isSyncing, setIsSyncing] = useState(false);
@@ -245,8 +245,10 @@ export default function AdminPanel() {
   const openMatchEdit = (match) => {
     setEditingMatch(match);
     setMatchUpdate({
-      home_score: match.home_score || 0,
-      away_score: match.away_score || 0,
+      home_score: match.home_score ?? 0,
+      away_score: match.away_score ?? 0,
+      home_score_penalties: match.home_score_penalties ?? '',
+      away_score_penalties: match.away_score_penalties ?? '',
       status: match.status || 'finished'
     });
   };
@@ -790,6 +792,16 @@ export default function AdminPanel() {
                 <div className="form-group">
                   <label>Goles Visitante</label>
                   <input type="number" className="form-input" value={matchUpdate.away_score} onChange={e => setMatchUpdate({...matchUpdate, away_score: e.target.value === '' ? '' : parseInt(e.target.value)})}/>
+                </div>
+              </div>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
+                <div className="form-group">
+                  <label>Penales Local (Opcional)</label>
+                  <input type="number" className="form-input" placeholder="-" value={matchUpdate.home_score_penalties ?? ''} onChange={e => setMatchUpdate({...matchUpdate, home_score_penalties: e.target.value === '' ? null : parseInt(e.target.value)})}/>
+                </div>
+                <div className="form-group">
+                  <label>Penales Visitante (Opcional)</label>
+                  <input type="number" className="form-input" placeholder="-" value={matchUpdate.away_score_penalties ?? ''} onChange={e => setMatchUpdate({...matchUpdate, away_score_penalties: e.target.value === '' ? null : parseInt(e.target.value)})}/>
                 </div>
               </div>
               <div className="form-group">
