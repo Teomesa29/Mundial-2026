@@ -411,16 +411,19 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
             if api_status == MatchStatus.scheduled and match_utc <= now:
                 api_status = MatchStatus.live
                 
-            score_data = match_data.get('score', {})
-            if score_data.get('extraTime') and score_data['extraTime'].get('home') is not None:
-                home_score = score_data['extraTime']['home']
-                away_score = score_data['extraTime']['away']
-            elif score_data.get('regularTime') and score_data['regularTime'].get('home') is not None:
-                home_score = score_data['regularTime']['home']
-                away_score = score_data['regularTime']['away']
-            else:
-                home_score = score_data.get('fullTime', {}).get('home')
-                away_score = score_data.get('fullTime', {}).get('away')
+            score_data = match_data.get('score', {}) or {}
+            full_time = score_data.get('fullTime') or {}
+            home_score = full_time.get('home')
+            away_score = full_time.get('away')
+            
+            penalties = score_data.get('penalties') or {}
+            home_penalties = penalties.get('home')
+            away_penalties = penalties.get('away')
+            
+            if home_score is not None and home_penalties is not None:
+                home_score = max(0, home_score - home_penalties)
+            if away_score is not None and away_penalties is not None:
+                away_score = max(0, away_score - away_penalties)
             
             # Look up match in-memory
             db_match = db_matches.get(ext_id)
@@ -451,9 +454,6 @@ async def sync_matches(db: AsyncSession) -> SyncResult:
                 target_status = api_status
                 if db_match.status == MatchStatus.live and api_status == MatchStatus.scheduled:
                     target_status = MatchStatus.live
-                
-                home_penalties = match_data.get('score', {}).get('penalties', {}).get('home')
-                away_penalties = match_data.get('score', {}).get('penalties', {}).get('away')
 
                 # Keep database scores if API scores are None
                 target_home_score = home_score if home_score is not None else db_match.home_score
