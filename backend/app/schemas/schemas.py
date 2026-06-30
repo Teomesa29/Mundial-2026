@@ -76,6 +76,8 @@ class MatchResponse(MatchBase):
     status: MatchStatus
     home_score: Optional[int] = None
     away_score: Optional[int] = None
+    home_score_penalties: Optional[int] = None
+    away_score_penalties: Optional[int] = None
     winner_team_id: Optional[int] = None
     home_team: Optional[TeamResponse] = None
     away_team: Optional[TeamResponse] = None

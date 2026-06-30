@@ -383,7 +383,7 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
     const homeTeam = matchData.home;
     const awayTeam = matchData.away;
     const isDisabled = !homeTeam || !awayTeam;
-    const isFinished = matchData.is_finished && userRole !== 'admin';
+    const isFinished = matchData.is_finished && !(userRole === 'admin' && adminUserId);
     const points = matchData.points;
     const realHome = matchData.real_home;
     const realAway = matchData.real_away;

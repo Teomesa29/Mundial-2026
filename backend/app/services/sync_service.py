@@ -83,15 +83,16 @@ async def calculate_predictions_points(db: AsyncSession, match_id: int, skip_ref
                 user_predicted_winner_id = pred.predicted_winner_id
             
             if real_is_draw:
+                is_correct_winner = (user_predicted_winner_id == real_winner_id)
                 if is_exact:
-                    # Exact draw predicted
-                    points = p_exact
+                    # Exact draw predicted, must also guess correct penalty winner
+                    points = p_exact if is_correct_winner else 0
                 else:
                     if pred_is_draw:
-                        # Correct outcome (DRAW) -> p_correct (normally 3 points)
-                        points = p_correct
+                        # Correct outcome (DRAW), must also guess correct penalty winner
+                        points = p_correct if is_correct_winner else 0
                     else:
-                        # Predicted a team to win, but it ended in a draw. They get 0 points.
+                        # Predicted a team to win in 120m, but it ended in a draw.
                         points = 0
             else:
                 if is_exact:
