@@ -430,17 +430,12 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
       };
 
       if (isRightSide) {
-        const isWinner = team && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away && matchData.predicted_winner_id === team.id;
-        const isCursorPointer = team && !isDisabled && !isLocked && !isM_Locked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
-
         return (
           <div
-            className={`bm-team ${isWinner ? 'winner' : ''}`}
-            onClick={() => team && !isM_Locked && handleSelectWinner(matchDef.id, team.id)}
+            className={`bm-team`}
             style={{
               ...rowStyle,
-              cursor: isCursorPointer ? 'pointer' : 'default',
-              background: isWinner ? 'rgba(201, 168, 76, 0.05)' : 'none'
+              background: 'none'
             }}
           >
             {!isDisabled ? (
@@ -482,14 +477,10 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
               <div style={{ width: '38px', height: '26px', marginRight: 'auto' }}></div>
             )}
 
-            {isWinner && (
-              <i className="ri-vip-crown-fill" style={{ color: '#D4AF37', marginRight: '0.4rem', fontSize: '0.9rem' }} title="Ganador de penales elegido"></i>
-            )}
-
             <span className="bm-name" style={{
               fontSize: '0.88rem',
-              fontWeight: isWinner ? 800 : 700,
-              color: team ? (isWinner ? 'var(--gold-dark)' : '#111') : '#888',
+              fontWeight: 700,
+              color: team ? '#111' : '#888',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -505,17 +496,12 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
           </div>
         );
       } else {
-        const isWinner = team && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away && matchData.predicted_winner_id === team.id;
-        const isCursorPointer = team && !isDisabled && !isLocked && !isM_Locked && matchData.predicted_home !== '' && matchData.predicted_home === matchData.predicted_away;
-
         return (
           <div
-            className={`bm-team ${isWinner ? 'winner' : ''}`}
-            onClick={() => team && !isM_Locked && handleSelectWinner(matchDef.id, team.id)}
+            className={`bm-team`}
             style={{
               ...rowStyle,
-              cursor: isCursorPointer ? 'pointer' : 'default',
-              background: isWinner ? 'rgba(201, 168, 76, 0.05)' : 'none'
+              background: 'none'
             }}
           >
             <div className="bm-flag" style={{ width: '24px', height: '24px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, marginRight: '0.8rem', border: '1px solid rgba(0,0,0,0.08)' }}>
@@ -524,8 +510,8 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
 
             <span className="bm-name" style={{
               fontSize: '0.88rem',
-              fontWeight: isWinner ? 800 : 700,
-              color: team ? (isWinner ? 'var(--gold-dark)' : '#111') : '#888',
+              fontWeight: 700,
+              color: team ? '#111' : '#888',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -533,10 +519,6 @@ export default function BracketPredictor({ navigateTo, userRole, adminUserId }) 
             }}>
               {team ? getTranslatedName(team.name) : 'TBD'}
             </span>
-
-            {isWinner && (
-              <i className="ri-vip-crown-fill" style={{ color: '#D4AF37', marginLeft: '0.4rem', fontSize: '0.9rem' }} title="Ganador de penales elegido"></i>
-            )}
 
             {!isDisabled && (
               isFinished ? (
